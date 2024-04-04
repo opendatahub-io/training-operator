@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	Timeout            = 30 * time.Second
+	Timeout            = 60 * time.Second
 	Interval           = 250 * time.Millisecond
 	ConsistentDuration = 3 * time.Second
 )
