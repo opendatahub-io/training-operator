@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func expectedTFJob(cleanPodPolicy CleanPodPolicy, restartPolicy RestartPolicy, portName string, port int32) *TFJob {
@@ -55,7 +55,7 @@ func expectedTFJob(cleanPodPolicy CleanPodPolicy, restartPolicy RestartPolicy, p
 			},
 			TFReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 				TFJobReplicaTypeWorker: &ReplicaSpec{
-					Replicas:      pointer.Int32(1),
+					Replicas:      ptr.To[int32](1),
 					RestartPolicy: restartPolicy,
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
@@ -182,7 +182,7 @@ func TestSetDefaultTFJob(t *testing.T) {
 				Spec: TFJobSpec{
 					TFReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 						TFJobReplicaTypeWorker: &ReplicaSpec{
-							Replicas:      pointer.Int32(1),
+							Replicas:      ptr.To[int32](1),
 							RestartPolicy: customRestartPolicy,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -205,7 +205,7 @@ func TestSetDefaultTFJob(t *testing.T) {
 				Spec: TFJobSpec{
 					TFReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 						TFJobReplicaTypeWorker: &ReplicaSpec{
-							Replicas:      pointer.Int32(1),
+							Replicas:      ptr.To[int32](1),
 							RestartPolicy: customRestartPolicy,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -237,7 +237,7 @@ func TestSetDefaultTFJob(t *testing.T) {
 					},
 					TFReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 						TFJobReplicaTypeWorker: &ReplicaSpec{
-							Replicas:      pointer.Int32(1),
+							Replicas:      ptr.To[int32](1),
 							RestartPolicy: customRestartPolicy,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{

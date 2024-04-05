@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func expectedXGBoostJob(cleanPodPolicy CleanPodPolicy, restartPolicy RestartPolicy, replicas int32, portName string, port int32) *XGBoostJob {
@@ -52,7 +52,7 @@ func expectedXGBoostJob(cleanPodPolicy CleanPodPolicy, restartPolicy RestartPoli
 			},
 			XGBReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 				XGBoostJobReplicaTypeWorker: &ReplicaSpec{
-					Replicas:      pointer.Int32(replicas),
+					Replicas:      ptr.To[int32](replicas),
 					RestartPolicy: restartPolicy,
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
@@ -124,7 +124,7 @@ func TestSetDefaults_XGBoostJob(t *testing.T) {
 				Spec: XGBoostJobSpec{
 					XGBReplicaSpecs: map[ReplicaType]*ReplicaSpec{
 						XGBoostJobReplicaTypeWorker: &ReplicaSpec{
-							Replicas: pointer.Int32(3),
+							Replicas: ptr.To[int32](3),
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
 									Containers: []corev1.Container{
