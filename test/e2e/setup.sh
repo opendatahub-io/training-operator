@@ -19,4 +19,4 @@ docker build -t ${KFTO_IMG} -f ${BASE_DIR}/build/images/training-operator/Docker
 
 echo "Load training operator image into cluster"
 kind load --name training-operator-cluster docker-image training-operator:dev
-KFTO_IMG=training-operator:dev make deploy
+IMG=training-operator:dev make deploy

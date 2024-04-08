@@ -1,5 +1,3 @@
-//go:build ignore
-
 /*
 Copyright 2023.
 
@@ -25,10 +23,10 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/project-codeflare/codeflare-common/support"
 
+	kftov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	kftov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
+	kueuev1b1 "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
 func PytorchJob(t Test, namespace, name string) func(g gomega.Gomega) *kftov1.PyTorchJob {
@@ -52,6 +50,24 @@ func TestPytorchjobWithSFTtrainer(t *testing.T) {
 
 	// Create a namespace
 	namespace := test.NewTestNamespace()
+
+	local_q := &kueuev1b1.LocalQueue{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "LocalQueue",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "lq-trainer",
+			Namespace: namespace.Name,
+		},
+		Spec: kueuev1b1.LocalQueueSpec{
+			ClusterQueue: "cq-small",
+		},
+	}
+	local_q, err := test.Client().Kueue().KueueV1beta1().LocalQueues(namespace.Name).Create(test.Ctx(), local_q, metav1.CreateOptions{})
+	test.Expect(err).NotTo(HaveOccurred())
+	test.T().Logf("Created LocalQueue %s/%s successfully", local_q.Namespace, local_q.Name)
+
 	config := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -61,7 +77,7 @@ func TestPytorchjobWithSFTtrainer(t *testing.T) {
 			Name:      "my-config",
 			Namespace: namespace.Name,
 			Labels: map[string]string{
-				"kueue.x-k8s.io/queue-name": "lq-trainer",
+				"kueue.x-k8s.io/queue-name": local_q.Name,
 			},
 		},
 		BinaryData: map[string][]byte{
@@ -71,7 +87,7 @@ func TestPytorchjobWithSFTtrainer(t *testing.T) {
 		Immutable: Ptr(true),
 	}
 
-	config, err := test.Client().Core().CoreV1().ConfigMaps(namespace.Name).Create(test.Ctx(), config, metav1.CreateOptions{})
+	config, err = test.Client().Core().CoreV1().ConfigMaps(namespace.Name).Create(test.Ctx(), config, metav1.CreateOptions{})
 	test.Expect(err).NotTo(HaveOccurred())
 	test.T().Logf("Created ConfigMap %s/%s successfully", config.Namespace, config.Name)
 
@@ -83,6 +99,9 @@ func TestPytorchjobWithSFTtrainer(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kfto-sft",
 			Namespace: namespace.Name,
+			Labels: map[string]string{
+				"kueue.x-k8s.io/queue-name": local_q.Name,
+			},
 		},
 		Spec: kftov1.PyTorchJobSpec{
 			PyTorchReplicaSpecs: map[kftov1.ReplicaType]*kftov1.ReplicaSpec{
@@ -94,9 +113,9 @@ func TestPytorchjobWithSFTtrainer(t *testing.T) {
 							Containers: []corev1.Container{
 								{
 									Name:            "pytorch",
-									Image:           "quay.io/tedchang/sft-trainer:dev",
+									Image:           "quay.io/modh/fms-hf-tuning:5d8789723ec58ac1bc9c2df704395f162fed974a",
 									ImagePullPolicy: corev1.PullIfNotPresent,
-									Command:         []string{"python", "/app/launch_training.py"},
+									Command:         []string{"python", "/app/accelerate_launch.py"},
 									Env: []corev1.EnvVar{
 										{
 											Name:  "SFT_TRAINER_CONFIG_JSON_PATH",

@@ -1,6 +1,6 @@
 module github.com/kubeflow/training-operator
 
-go 1.20
+go 1.22
 
 require (
 	github.com/go-logr/logr v1.4.1
@@ -9,7 +9,7 @@ require (
 	github.com/onsi/gomega v1.31.1
 	github.com/project-codeflare/codeflare-common v0.0.0-20240404131119-10cc4982cd0e
 	github.com/prometheus/client_golang v1.18.0
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 	k8s.io/api v0.29.3
@@ -20,6 +20,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/controller-runtime v0.17.2
+	sigs.k8s.io/kueue v0.6.1
 	sigs.k8s.io/scheduler-plugins v0.26.7
 	sigs.k8s.io/yaml v1.4.0
 	volcano.sh/apis v1.8.0
@@ -68,7 +69,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	github.com/ray-project/kuberay/ray-operator v0.0.0-20231016183545-097828931d15 // indirect
+	github.com/ray-project/kuberay/ray-operator v1.1.0-alpha.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
