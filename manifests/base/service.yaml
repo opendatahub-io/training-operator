@@ -8,12 +8,16 @@ metadata:
     prometheus.io/port: "8080"
   labels:
     app: training-operator
-  name: training-operator
+  name: training-operator-metrics-service
 spec:
   ports:
-  - name: monitoring-port
+  - name: metrics
     port: 8080
+    protocol: TCP
     targetPort: 8080
   selector:
     control-plane: kubeflow-training-operator
-  type: ClusterIP
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: training-operator
+status:
+  loadBalancer: {}
