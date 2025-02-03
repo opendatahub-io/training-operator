@@ -30,16 +30,6 @@ replacements:
       name: training-operator
     fieldPaths:
     - spec.template.spec.containers.0.image
-  - source:
-    kind: ConfigMap
-    name: rhoai-config
-    version: v1
-    fieldPath: data.odh-training-operator-controller-image
-  targets:
-  - select:
-      kind: Deployment
-      name: training-operator
-    fieldPaths:
     - spec.template.spec.containers.0.args.2
 
 # Labels to add to all resources and selectors.
