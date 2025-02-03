@@ -10,3 +10,5 @@ spec:
         image: $(image)
         args:
         - "--zap-log-level=2"
+        - --pytorch-init-container-image
+        - $(image)
