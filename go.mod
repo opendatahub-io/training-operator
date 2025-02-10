@@ -1,6 +1,7 @@
 module github.com/kubeflow/training-operator
 
 go 1.23
+
 toolchain go1.23.2
 
 require (
