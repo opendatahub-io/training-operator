@@ -81,6 +81,17 @@ Please refer to the [CONTRIBUTING guide](CONTRIBUTING.md).
 
 Please refer to the [CHANGELOG](CHANGELOG.md).
 
+## Release
+
+### ⚠️ EXTREMELY IMPORTANT ⚠️
+
+**Whenever you rebase this fork onto a new upstream release, you _must_ update the version in
+[component_metadata.yaml](https://github.com/opendatahub-io/training-operator/blob/dev/manifests/component_metadata.yaml).**
+This version is displayed to customers via the `DataScienceCluster` resource, so it must remain accurate.
+
+If a new ODH release is planned, ensure the updated version is also posted in the
+release tracker.        See example: [Issue #170](https://github.com/opendatahub-io/opendatahub-community/issues/170).
+
 ## Version Matrix
 
 The following table lists the most recent few versions of the operator.
