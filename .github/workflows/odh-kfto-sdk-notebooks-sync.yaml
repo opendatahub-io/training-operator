@@ -147,6 +147,9 @@ jobs:
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/$REPO_OWNER/$REPO_NAME.git
           git push origin ${{ env.UPDATER_BRANCH }}
 
+      - name: Wait for commit to propagate
+        run: sleep 15
+
       - name: Create Pull Request
         run: |
           gh pr create --repo $UPSTREAM_OWNER/$UPSTREAM_REPO_NAME \
