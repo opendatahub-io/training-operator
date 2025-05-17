@@ -18,7 +18,7 @@ TESTS_REQUIRES = [
     "pytest",
     "pytest-tornasync",
     "mypy",
-    "black==24.3.0",
+    "black==24.10.0",
     "flake8==4.0.1",
 ]
 
