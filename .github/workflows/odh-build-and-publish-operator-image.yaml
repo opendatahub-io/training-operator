@@ -61,6 +61,18 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
             go build -tags strictfipsruntime -a -o manager-$GOARCH cmd/training-operator.v1/main.go
+            
+        - name: Build linux/s390x operator binary
+          env:
+            CC: s390x-linux-gnu-gcc
+            CGO_ENABLED: 1
+            GOOS: linux
+            GOARCH: s390x
+          shell: bash
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y gcc-s390x-linux-gnu libc6-dev-s390x-cross
+            go build -tags strictfipsruntime -a -o manager-$GOARCH cmd/training-operator.v1/main.go
 
         - name: Add docker tags
           id: meta
@@ -80,7 +92,7 @@ jobs:
             image: quay.io/${{ env.REPO_NAME }}/training-operator
             tags: ${{ steps.meta.outputs.tags }}
             labels: ${{ steps.meta.outputs.labels }}
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64,linux/arm64,linux/s390x
             containerfiles: |
               build/images/training-operator/Dockerfile.multiarch
             extra-args: |
