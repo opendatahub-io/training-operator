@@ -33,6 +33,8 @@ const (
 	EnvNnodes = "PET_NNODES"
 	// EnvNodeRank is the environment variable name for the rank of nodes.
 	EnvNodeRank = "PET_NODE_RANK"
+	// CheckpointAnnotationEnvVarPrefix is the prefix of the environment variable name for the annotation.
+	CheckpointAnnotationPrefix = "checkpoint.config.kubeflow.org/"
 )
 
 // EnvVarGenerator is the environment variable generator interface.
@@ -51,6 +53,14 @@ func setPodEnv(obj interface{}, podTemplateSpec *corev1.PodTemplateSpec, rtype, 
 		if len(podTemplateSpec.Spec.Containers[i].Env) == 0 {
 			podTemplateSpec.Spec.Containers[i].Env = make([]corev1.EnvVar, 0)
 		}
+
+		// Inject checkpointing environment variables from annotations.
+		checkpointEnvVars := extractCheckpointEnvVars(pytorchjob)
+		if len(checkpointEnvVars) > 0 {
+			podTemplateSpec.Spec.Containers[i].Env = append(
+				podTemplateSpec.Spec.Containers[i].Env, checkpointEnvVars...)
+		}
+
 		// Set PYTHONUNBUFFERED to true, to disable output buffering.
 		// Ref https://stackoverflow.com/questions/59812009/what-is-the-use-of-pythonunbuffered-in-docker-file.
 		podTemplateSpec.Spec.Containers[i].Env = append(
@@ -165,4 +175,22 @@ func getPortFromPyTorchJob(job *kubeflowv1.PyTorchJob, rtype kubeflowv1.ReplicaT
 		}
 	}
 	return -1, fmt.Errorf("port not found")
+}
+
+func extractCheckpointEnvVars(pytorchjob *kubeflowv1.PyTorchJob) []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	if pytorchjob.GetAnnotations() == nil {
+		return envVars
+	}
+	for key, value := range pytorchjob.GetAnnotations() {
+		if strings.HasPrefix(key, CheckpointAnnotationPrefix) {
+			// remove the prefix
+			envVarName := strings.TrimPrefix(key, CheckpointAnnotationPrefix)
+			// convert to upper case and replace "-" with "_"
+			envVarName = strings.ToUpper(strings.ReplaceAll(envVarName, "-", "_"))
+			envVars = append(envVars, corev1.EnvVar{Name: envVarName, Value: value})
+		}
+	}
+	return envVars
 }
