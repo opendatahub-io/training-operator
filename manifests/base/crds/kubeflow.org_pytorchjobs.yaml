@@ -8291,6 +8291,11 @@ spec:
               Most recently observed status of the PyTorchJob.
               Read-only (modified by the system).
             properties:
+              completionPercentage:
+                description: CompletionPercentage is the percentage of the job that
+                  has completed from 0.0 to 100.0, formatted as a string with one
+                  decimal place (e.g., "45.2").
+                type: string
               completionTime:
                 description: |-
                   Represents time when the job was completed. It is not guaranteed to

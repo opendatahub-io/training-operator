@@ -66,6 +66,10 @@ type JobStatus struct {
 	// be set in happens-before order across separate operations.
 	// It is represented in RFC3339 form and is in UTC.
 	LastReconcileTime *metav1.Time `json:"lastReconcileTime,omitempty"`
+
+	// CompletionPercentage is the percentage of the job that has completed from 0.0 to 100.0,
+	// formatted as a string with one decimal place (e.g., "45.2").
+	CompletionPercentage string `json:"completionPercentage,omitempty"`
 }
 
 // ReplicaType represents the type of the replica. Each operator needs to define its

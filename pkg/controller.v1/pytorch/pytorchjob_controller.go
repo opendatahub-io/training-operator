@@ -15,7 +15,9 @@
 package pytorch
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -44,7 +46,10 @@ import (
 	networkingv1ac "k8s.io/client-go/applyconfigurations/networking/v1"
 	"k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/remotecommand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -62,6 +67,12 @@ const (
 	controllerName = "pytorchjob-controller"
 )
 
+// ProgressData represents the structure of progress.json file where training job progress is stored
+type ProgressData struct {
+	CurrentStep int `json:"current_step"`
+	TotalSteps  int `json:"total_steps"`
+}
+
 // NewReconciler creates a PyTorchJob Reconciler
 func NewReconciler(mgr manager.Manager, gangSchedulingSetupFunc common.GangSchedulingSetupFunc) *PyTorchJobReconciler {
 	r := &PyTorchJobReconciler{
@@ -70,6 +81,7 @@ func NewReconciler(mgr manager.Manager, gangSchedulingSetupFunc common.GangSched
 		recorder:  mgr.GetEventRecorderFor(controllerName),
 		apiReader: mgr.GetAPIReader(),
 		Log:       log.Log,
+		config:    mgr.GetConfig(),
 	}
 
 	// Create clients
@@ -104,12 +116,14 @@ type PyTorchJobReconciler struct {
 	Log       logr.Logger
 	recorder  record.EventRecorder
 	apiReader client.Reader
+	config    *restclient.Config
 }
 
 // +kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=scheduling.volcano.sh,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
@@ -176,6 +190,41 @@ func (r *PyTorchJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "Reconcile PyTorchJob error")
 		return ctrl.Result{}, err
 	}
+
+	jobIsRunning := false
+	for _, condition := range pytorchjob.Status.Conditions {
+		if condition.Type == kubeflowv1.JobRunning && condition.Status == corev1.ConditionTrue {
+			jobIsRunning = true
+			break
+		}
+	}
+
+	if jobIsRunning {
+		if content, err := r.readCompletionPercentageFromPod(pytorchjob); err == nil {
+			if percentage, parseErr := r.parseCompletionPercentage(content); parseErr == nil {
+				// Assuming your PyTorchJobStatus has a CompletionPercentage field.
+				// It's crucial to update the status in the API server after this.
+				if pytorchjob.Status.CompletionPercentage != percentage {
+					pytorchjob.Status.CompletionPercentage = percentage
+					// This is how you tell the API server to save your changes to the status
+					if err := r.Client.Status().Update(ctx, pytorchjob); err != nil {
+						logger.Error(err, "Failed to update PyTorchJob status with progress percentage")
+						return ctrl.Result{}, err
+					}
+					logger.Info("Updated completion percentage for PyTorchJob %s: %s%%", pytorchjob.Name, percentage)
+				}
+			} else {
+				logrus.Debugf("Failed to parse completion percentage for PyTorchJob %s: %v, content: %s", pytorchjob.Name, parseErr, content)
+			}
+		} else {
+			logrus.Debugf("Failed to read completion percentage from rank-0 pod for PyTorchJob %s: %v", pytorchjob.Name, err)
+		}
+		
+		// Return a short requeue interval for running jobs
+		// TODO instead of hard coding the requeue interval we could make this configurable
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	
 	t, err := util.DurationUntilExpireTime(&pytorchjob.Spec.RunPolicy, pytorchjob.Status)
 	if err != nil {
 		logrus.Warnf("Reconcile PyTorchJob error %v", err)
@@ -455,6 +504,119 @@ func (r *PyTorchJobReconciler) UpdateJobStatus(job interface{},
 		}
 	}
 	return nil
+}
+
+// execInPod executes a command in the specified pod and returns the output
+func (r *PyTorchJobReconciler) execInPod(pod *corev1.Pod, containerName string, command []string) (string, error) {
+	req := r.KubeClientSet.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(pod.Name).
+		Namespace(pod.Namespace).
+		SubResource("exec")
+
+	req.VersionedParams(&corev1.PodExecOptions{
+		Container: containerName,
+		Command:   command,
+		Stdout:    true,
+		Stderr:    true,
+	}, scheme.ParameterCodec)
+
+	executor, err := remotecommand.NewSPDYExecutor(r.config, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("failed to create executor: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = executor.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %v, stderr: %s", err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// hasRankZero checks if a pod has RANK=0 environment variable
+func (r *PyTorchJobReconciler) hasRankZero(pod *corev1.Pod) bool {
+	for _, container := range pod.Spec.Containers {
+		for _, envVar := range container.Env {
+			if envVar.Name == "RANK" && envVar.Value == "0" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// readCompletionPercentageFromPod reads the completion percentage from the pod with RANK=0
+func (r *PyTorchJobReconciler) readCompletionPercentageFromPod(pytorchjob *kubeflowv1.PyTorchJob) (string, error) {
+	pods, err := r.GetPodsForJob(pytorchjob)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pods for job: %v", err)
+	}
+
+	// Find the pod with RANK=0 (the coordinator/master process in PyTorch distributed training)
+	var rankZeroPod *corev1.Pod
+	for _, pod := range pods {
+		if r.hasRankZero(pod) {
+			rankZeroPod = pod
+			break
+		}
+	}
+
+	if rankZeroPod == nil {
+		return "", fmt.Errorf("no pod with RANK=0 found for job %s", pytorchjob.Name)
+	}
+
+	// Check if pod is running
+	if rankZeroPod.Status.Phase != corev1.PodRunning {
+		return "", fmt.Errorf("rank-0 pod %s is not in running state: %s", rankZeroPod.Name, rankZeroPod.Status.Phase)
+	}
+
+	// Get the container name (use default PyTorch container name)
+	containerName := kubeflowv1.PyTorchJobDefaultContainerName
+	if len(rankZeroPod.Spec.Containers) > 0 {
+		containerName = rankZeroPod.Spec.Containers[0].Name
+	}
+
+	// Read the progress.json file from /mnt/checkpoints - /var/run is not accessible by non-root user
+	// TODO we could have the user add the file path in an annotation instead of hardcoding it here
+	// later we could update the CRD spec to allow for checkpoint config
+	progressFilePath := "/mnt/checkpoints/progress.json"
+	catCommand := []string{"cat", progressFilePath}
+	content, err := r.execInPod(rankZeroPod, containerName, catCommand)
+	if err != nil {
+		return "", fmt.Errorf("failed to read progress file %s: %v", progressFilePath, err)
+	}
+
+	return strings.TrimSpace(content), nil
+}
+
+// parseCompletionPercentage parses the JSON content and calculates percentage from two values
+func (r *PyTorchJobReconciler) parseCompletionPercentage(content string) (string, error) {
+	var progress ProgressData
+
+	if err := json.Unmarshal([]byte(content), &progress); err != nil {
+		return "", fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	// Extract current and total steps
+	current := progress.CurrentStep
+	total := progress.TotalSteps
+
+	if total == 0 {
+		return "", fmt.Errorf("total_steps is zero, cannot calculate percentage")
+	}
+
+	if current < 0 || current > total {
+		return "", fmt.Errorf("invalid progress values: current_step=%d, total_steps=%d", current, total)
+	}
+
+	percentage := float64(current) / float64(total) * 100.0
+	return fmt.Sprintf("%.1f", percentage), nil
 }
 
 // ContainsMasterSpec returns true if the pytorchjob contains master spec.
