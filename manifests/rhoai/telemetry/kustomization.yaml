@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - servicemonitor.yaml
+  - otel-collector.yaml
+  - networkpolicy.yaml
+
+# Add telemetry-specific labels
+commonLabels:
+  app.kubernetes.io/part-of: training-operator
+  telemetry.opendatahub.io/enabled: "true"
+  monitoring.opendatahub.io/scrape: "true"

@@ -10,80 +10,93 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
-// limitations under the License
+// limitations under the License.
 
 package common
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// Define all the prometheus counters for all jobs
 var (
-	jobsCreatedCount = promauto.NewCounterVec(
+	initOnce sync.Once
+)
+
+// metrics preserved for backward compatibility
+var (
+	jobsCreatedCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "training_operator_jobs_created_total",
-			Help: "Counts number of jobs created",
+			Help: "Total number of training jobs created",
 		},
 		[]string{"job_namespace", "framework"},
 	)
-	jobsDeletedCount = promauto.NewCounterVec(
+
+	jobsDeletedCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "training_operator_jobs_deleted_total",
-			Help: "Counts number of jobs deleted",
+			Help: "Total number of training jobs deleted",
 		},
 		[]string{"job_namespace", "framework"},
 	)
-	jobsSuccessfulCount = promauto.NewCounterVec(
+
+	jobsSuccessfulCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "training_operator_jobs_successful_total",
-			Help: "Counts number of jobs successful",
+			Help: "Total number of successful training jobs",
 		},
 		[]string{"job_namespace", "framework"},
 	)
-	jobsFailedCount = promauto.NewCounterVec(
+
+	jobsFailedCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "training_operator_jobs_failed_total",
-			Help: "Counts number of jobs failed",
+			Help: "Total number of failed training jobs",
 		},
 		[]string{"job_namespace", "framework"},
 	)
-	jobsRestartedCount = promauto.NewCounterVec(
+
+	jobsRestartedCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "training_operator_jobs_restarted_total",
-			Help: "Counts number of jobs restarted",
+			Help: "Total number of restarted training jobs",
 		},
 		[]string{"job_namespace", "framework"},
 	)
 )
 
 func init() {
-	// Register custom metrics with the global prometheus registry
-	metrics.Registry.MustRegister(jobsCreatedCount,
-		jobsDeletedCount,
-		jobsSuccessfulCount,
-		jobsFailedCount,
-		jobsRestartedCount)
+	initOnce.Do(func() {
+		metrics.Registry.MustRegister(
+			jobsCreatedCount,
+			jobsDeletedCount,
+			jobsSuccessfulCount,
+			jobsFailedCount,
+			jobsRestartedCount,
+		)
+	})
 }
 
-func CreatedJobsCounterInc(job_namespace, framework string) {
-	jobsCreatedCount.WithLabelValues(job_namespace, framework).Inc()
+// compatibility functions
+func CreatedJobsCounterInc(jobNamespace, framework string) {
+	jobsCreatedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func DeletedJobsCounterInc(job_namespace, framework string) {
-	jobsDeletedCount.WithLabelValues(job_namespace, framework).Inc()
+func DeletedJobsCounterInc(jobNamespace, framework string) {
+	jobsDeletedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func SuccessfulJobsCounterInc(job_namespace, framework string) {
-	jobsSuccessfulCount.WithLabelValues(job_namespace, framework).Inc()
+func SuccessfulJobsCounterInc(jobNamespace, framework string) {
+	jobsSuccessfulCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func FailedJobsCounterInc(job_namespace, framework string) {
-	jobsFailedCount.WithLabelValues(job_namespace, framework).Inc()
+func FailedJobsCounterInc(jobNamespace, framework string) {
+	jobsFailedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func RestartedJobsCounterInc(job_namespace, framework string) {
-	jobsRestartedCount.WithLabelValues(job_namespace, framework).Inc()
+func RestartedJobsCounterInc(jobNamespace, framework string) {
+	jobsRestartedCount.WithLabelValues(jobNamespace, framework).Inc()
 }

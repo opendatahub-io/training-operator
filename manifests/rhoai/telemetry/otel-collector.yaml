@@ -1,0 +1,187 @@
+# ConfigMap for OpenTelemetry Collector configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-operator-otel-config
+data:
+  otel-config.yaml: |
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'training-operator'
+              kubernetes_sd_configs:
+                - role: service
+                  namespaces:
+                    names:
+                      - opendatahub
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_service_label_monitoring_opendatahub_io_scrape]
+                  action: keep
+                  regex: "true"
+              metric_relabel_configs:
+                # Keep only PRIMARY telemetry metric
+                - action: keep
+                  source_labels: [__name__]
+                  regex: 'training_jobs_total'
+                # Drop all others from export
+                - action: drop
+                  source_labels: [__name__]
+                  regex: '(training_operator_jobs_.*|kfto_.*|telemetry_errors_total)'
+
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+      
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+
+      attributes:
+        actions:
+          - key: cluster_id
+            from_attribute: CLUSTER_ID
+            action: insert
+          - key: rhoai_version
+            value: "2.15.0"
+            action: insert
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        namespace: rhoai_telemetry
+        
+      otlp:
+        endpoint: "${OBSERVATORIUM_ENDPOINT}"
+        tls:
+          insecure: false
+        headers:
+          X-Tenant-ID: "${TENANT_ID}"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [prometheus]
+          processors: [memory_limiter, batch, attributes]
+          exporters: [prometheus, otlp]
+---
+# ServiceAccount for OpenTelemetry Collector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: training-operator-otel-collector
+---
+# ClusterRole for OpenTelemetry Collector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: training-operator-otel-collector
+rules:
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources:
+  - servicemonitors
+  verbs: ["get", "list"]
+---
+# ClusterRoleBinding for OpenTelemetry Collector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: training-operator-otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: training-operator-otel-collector
+subjects:
+- kind: ServiceAccount
+  name: training-operator-otel-collector
+  namespace: opendatahub
+---
+# Deployment for OpenTelemetry Collector
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-operator-otel-collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+      app.kubernetes.io/component: telemetry
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+        app.kubernetes.io/component: telemetry
+        app.kubernetes.io/part-of: training-operator
+    spec:
+      serviceAccountName: training-operator-otel-collector
+      containers:
+      - name: collector
+        image: registry.redhat.io/openshift-observability/otel-collector:latest
+        args:
+          - --config=/conf/otel-config.yaml
+        env:
+        - name: CLUSTER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cluster-config
+              key: cluster-id
+              optional: true
+        - name: TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: telemetry-credentials
+              key: tenant-id
+              optional: true
+        - name: OBSERVATORIUM_ENDPOINT
+          value: "observatorium-gateway.observability.svc.cluster.local:443"
+        ports:
+        - containerPort: 8889
+          name: prometheus
+        volumeMounts:
+        - name: config
+          mountPath: /conf
+          readOnly: true
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      volumes:
+      - name: config
+        configMap:
+          name: training-operator-otel-config
+---
+# Service for OpenTelemetry Collector
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-operator-otel-collector
+  labels:
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: telemetry
+  ports:
+  - name: prometheus
+    port: 8889
+    targetPort: 8889
+    protocol: TCP

@@ -1,0 +1,48 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: training-operator
+  annotations:
+    telemetry.opendatahub.io/description: "Training Operator usage metrics"
+    telemetry.opendatahub.io/max-cardinality: "10"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: training-operator
+  endpoints:
+  - port: https-metrics
+    path: /metrics
+    scheme: HTTPS
+    tlsConfig: {}
+    interval: 30s
+    metricRelabelings:
+      # Keep only the primary telemetry metric
+      - action: keep
+        regex: 'training_jobs_total'
+        sourceLabels: [__name__]
+      # Drop all other metrics from shipping
+      - action: drop
+        regex: '(training_operator_jobs_.*|kfto_.*|telemetry_errors_total)'
+        sourceLabels: [__name__]
+---
+# Recording rules for local dashboards
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: training-operator-recording
+spec:
+  groups:
+  - name: training_operator.rules
+    interval: 30s
+    rules:
+    - record: training:jobs:rate5m
+      expr: |
+        sum by (image_type, runtime_version) (
+          rate(training_jobs_total[5m])
+        )
+    
+    - record: training:jobs:increase1h
+      expr: |
+        sum by (image_type, runtime_version) (
+          increase(training_jobs_total[1h])
+        )

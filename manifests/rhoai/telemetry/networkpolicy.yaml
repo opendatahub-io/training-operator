@@ -1,0 +1,63 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: training-operator-telemetry
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: training-operator
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow metrics scraping from monitoring namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-monitoring
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-user-workload-monitoring
+    ports:
+    - protocol: TCP
+      port: 8443
+  # Allow OTEL collector access
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: otel-collector
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 8443
+---
+# RBAC for metrics access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: training-operator-metrics
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: training-operator-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: training-operator-metrics
+subjects:
+- kind: ServiceAccount
+  name: training-operator-otel-collector
+  namespace: opendatahub

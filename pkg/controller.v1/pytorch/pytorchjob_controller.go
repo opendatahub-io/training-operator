@@ -22,6 +22,7 @@ import (
 
 	kubeflowv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	trainingoperatorcommon "github.com/kubeflow/training-operator/pkg/common"
+	"github.com/kubeflow/training-operator/pkg/common/telemetry"
 	"github.com/kubeflow/training-operator/pkg/common/util"
 	"github.com/kubeflow/training-operator/pkg/controller.v1/common"
 	"github.com/kubeflow/training-operator/pkg/controller.v1/control"
@@ -64,6 +65,9 @@ const (
 
 // NewReconciler creates a PyTorchJob Reconciler
 func NewReconciler(mgr manager.Manager, gangSchedulingSetupFunc common.GangSchedulingSetupFunc) *PyTorchJobReconciler {
+	// Initialize telemetry metrics
+	telemetry.InitMetrics()
+
 	r := &PyTorchJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
@@ -118,12 +122,6 @@ type PyTorchJobReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// the PyTorchJob object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *PyTorchJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	logger := r.Log.WithValues(kubeflowv1.PyTorchJobSingular, req.NamespacedName)
@@ -524,14 +522,20 @@ func (r *PyTorchJobReconciler) GetDefaultContainerPortName() string {
 	return kubeflowv1.PyTorchJobDefaultPortName
 }
 
-// onOwnerCreateFunc modify creation condition.
+// onOwnerCreateFunc modify creation condition and record telemetry.
 func (r *PyTorchJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.PyTorchJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.PyTorchJob]) bool {
 		pytorchjob := e.Object
 		r.Scheme.Default(pytorchjob)
 		msg := fmt.Sprintf("PyTorchJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
+		
+		// Legacy metrics
 		trainingoperatorcommon.CreatedJobsCounterInc(pytorchjob.Namespace, r.GetFrameworkName())
+		
+		// Phase 1 telemetry
+		telemetry.RecordPyTorchJobCreated(pytorchjob)
+		
 		commonutil.UpdateJobConditions(&pytorchjob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.PyTorchJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}
@@ -556,7 +560,7 @@ func desiredPyTorchJobNetworkPolicy(job *kubeflowv1.PyTorchJob) *networkingv1ac.
 								WithValues("openshift-monitoring"))),
 					).
 					WithPorts(
-						networkingv1ac.NetworkPolicyPort().WithProtocol(corev1.ProtocolTCP).WithPort(intstr.FromInt(8080)),
+						networkingv1ac.NetworkPolicyPort().WithProtocol(corev1.ProtocolTCP).WithPort(intstr.FromInt(8443)),
 					),
 			),
 		).

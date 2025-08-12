@@ -1,0 +1,63 @@
+# Add kube-rbac-proxy sidecar for secure metrics
+- op: add
+  path: /spec/template/spec/containers/-
+  target:
+    kind: Deployment
+    name: training-operator
+  value:
+    name: kube-rbac-proxy
+    image: registry.redhat.io/openshift4/ose-kube-rbac-proxy:v4.14
+    args:
+      - --secure-listen-address=0.0.0.0:8443
+      - --upstream=http://127.0.0.1:8080/metrics
+      - --logtostderr=true
+      - --v=2
+    ports:
+      - containerPort: 8443
+        name: https-metrics
+        protocol: TCP
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+
+# Add telemetry environment variables
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  target:
+    kind: Deployment
+    name: training-operator
+  value:
+    name: TELEMETRY_ENABLED
+    value: "true"
+
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  target:
+    kind: Deployment
+    name: training-operator
+  value:
+    name: RECORDING_RULES_ENABLED
+    value: "true"
+
+# Update service to expose metrics port
+- op: add
+  path: /spec/ports/-
+  target:
+    kind: Service
+    name: training-operator
+  value:
+    name: https-metrics
+    port: 8443
+    targetPort: https-metrics
+    protocol: TCP
