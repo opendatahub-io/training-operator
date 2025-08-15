@@ -121,6 +121,12 @@ func setPodEnv(obj interface{}, podTemplateSpec *corev1.PodTemplateSpec, rtype, 
 					Value: strconv.Itoa(int(totalReplicas)),
 				})
 		}
+
+		// Set the training progress file path.
+		podTemplateSpec.Spec.Containers[i].Env = append(podTemplateSpec.Spec.Containers[i].Env, corev1.EnvVar{
+			Name:  EnvTrainingProgressFilePath,
+			Value: GetProgressFilePath(pytorchjob),
+		})
 	}
 
 	return nil

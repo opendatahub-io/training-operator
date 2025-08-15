@@ -191,15 +191,7 @@ func (r *PyTorchJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	jobIsRunning := false
-	for _, condition := range pytorchjob.Status.Conditions {
-		if condition.Type == kubeflowv1.JobRunning && condition.Status == corev1.ConditionTrue {
-			jobIsRunning = true
-			break
-		}
-	}
-
-	if jobIsRunning {
+	if commonutil.IsRunning(pytorchjob.Status) {
 		if content, err := r.readCompletionPercentageFromPod(pytorchjob); err == nil {
 			if percentage, parseErr := r.parseCompletionPercentage(content); parseErr == nil {
 				// Assuming your PyTorchJobStatus has a CompletionPercentage field.
@@ -219,12 +211,12 @@ func (r *PyTorchJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		} else {
 			logrus.Debugf("Failed to read completion percentage from rank-0 pod for PyTorchJob %s: %v", pytorchjob.Name, err)
 		}
-		
+
 		// Return a short requeue interval for running jobs
 		// TODO instead of hard coding the requeue interval we could make this configurable
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	
+
 	t, err := util.DurationUntilExpireTime(&pytorchjob.Spec.RunPolicy, pytorchjob.Status)
 	if err != nil {
 		logrus.Warnf("Reconcile PyTorchJob error %v", err)
@@ -527,7 +519,9 @@ func (r *PyTorchJobReconciler) execInPod(pod *corev1.Pod, containerName string, 
 	}
 
 	var stdout, stderr bytes.Buffer
-	err = executor.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 10*time.Second, fmt.Errorf("pod execution timed out"))
+	defer cancel()
+	err = executor.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
@@ -576,16 +570,13 @@ func (r *PyTorchJobReconciler) readCompletionPercentageFromPod(pytorchjob *kubef
 		return "", fmt.Errorf("rank-0 pod %s is not in running state: %s", rankZeroPod.Name, rankZeroPod.Status.Phase)
 	}
 
-	// Get the container name (use default PyTorch container name)
-	containerName := kubeflowv1.PyTorchJobDefaultContainerName
-	if len(rankZeroPod.Spec.Containers) > 0 {
-		containerName = rankZeroPod.Spec.Containers[0].Name
-	}
+	// Get the container name
+	containerName := rankZeroPod.Spec.Containers[0].Name
 
 	// Read the progress.json file from /mnt/checkpoints - /var/run is not accessible by non-root user
 	// TODO we could have the user add the file path in an annotation instead of hardcoding it here
 	// later we could update the CRD spec to allow for checkpoint config
-	progressFilePath := "/mnt/checkpoints/progress.json"
+	progressFilePath := GetProgressFilePath(pytorchjob)
 	catCommand := []string{"cat", progressFilePath}
 	content, err := r.execInPod(rankZeroPod, containerName, catCommand)
 	if err != nil {
@@ -600,7 +591,7 @@ func (r *PyTorchJobReconciler) parseCompletionPercentage(content string) (string
 	var progress ProgressData
 
 	if err := json.Unmarshal([]byte(content), &progress); err != nil {
-		return "", fmt.Errorf("failed to parse JSON: %v", err)
+		return "", fmt.Errorf("failed to parse JSON from content '%s': %v", content, err)
 	}
 
 	// Extract current and total steps

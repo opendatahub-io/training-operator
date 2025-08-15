@@ -404,6 +404,13 @@ func schema_pkg_apis_kubefloworg_v1_JobStatus(ref common.ReferenceCallback) comm
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
+					"completionPercentage": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CompletionPercentage is the percentage of the job that has completed from 0.0 to 100.0, formatted as a string with one decimal place (e.g., \"45.2\").",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

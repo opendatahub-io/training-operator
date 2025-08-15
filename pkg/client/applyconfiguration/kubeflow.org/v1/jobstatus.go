@@ -24,11 +24,12 @@ import (
 // JobStatusApplyConfiguration represents a declarative configuration of the JobStatus type for use
 // with apply.
 type JobStatusApplyConfiguration struct {
-	Conditions        []JobConditionApplyConfiguration                           `json:"conditions,omitempty"`
-	ReplicaStatuses   map[kubefloworgv1.ReplicaType]*kubefloworgv1.ReplicaStatus `json:"replicaStatuses,omitempty"`
-	StartTime         *metav1.Time                                               `json:"startTime,omitempty"`
-	CompletionTime    *metav1.Time                                               `json:"completionTime,omitempty"`
-	LastReconcileTime *metav1.Time                                               `json:"lastReconcileTime,omitempty"`
+	Conditions           []JobConditionApplyConfiguration                           `json:"conditions,omitempty"`
+	ReplicaStatuses      map[kubefloworgv1.ReplicaType]*kubefloworgv1.ReplicaStatus `json:"replicaStatuses,omitempty"`
+	StartTime            *metav1.Time                                               `json:"startTime,omitempty"`
+	CompletionTime       *metav1.Time                                               `json:"completionTime,omitempty"`
+	LastReconcileTime    *metav1.Time                                               `json:"lastReconcileTime,omitempty"`
+	CompletionPercentage *string                                                    `json:"completionPercentage,omitempty"`
 }
 
 // JobStatusApplyConfiguration constructs a declarative configuration of the JobStatus type for use with
@@ -85,5 +86,13 @@ func (b *JobStatusApplyConfiguration) WithCompletionTime(value metav1.Time) *Job
 // If called multiple times, the LastReconcileTime field is set to the value of the last call.
 func (b *JobStatusApplyConfiguration) WithLastReconcileTime(value metav1.Time) *JobStatusApplyConfiguration {
 	b.LastReconcileTime = &value
+	return b
+}
+
+// WithCompletionPercentage sets the CompletionPercentage field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CompletionPercentage field is set to the value of the last call.
+func (b *JobStatusApplyConfiguration) WithCompletionPercentage(value string) *JobStatusApplyConfiguration {
+	b.CompletionPercentage = &value
 	return b
 }
