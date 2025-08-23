@@ -1,0 +1,197 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-operator-dashboard
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    component: dashboard
+    perses.io/dashboard: "true"
+data:
+  dashboard.json: |
+    {
+      "kind": "Dashboard",
+      "metadata": {
+        "name": "training-operator-overview",
+        "display": {
+          "name": "Training Operator Overview",
+          "description": "Monitor training job metrics and health"
+        }
+      },
+      "spec": {
+        "duration": "6h",
+        "refreshInterval": "30s",
+        "datasources": {
+          "prometheus": {
+            "default": true
+          }
+        },
+        "layouts": [
+          {
+            "kind": "Grid",
+            "spec": {
+              "display": {
+                "title": "Job Metrics",
+                "collapse": {
+                  "open": true
+                }
+              },
+              "items": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "width": 12,
+                  "height": 4,
+                  "content": {
+                    "$ref": "#/spec/panels/runtime-distribution"
+                  }
+                },
+                {
+                  "x": 12,
+                  "y": 0,
+                  "width": 12,
+                  "height": 4,
+                  "content": {
+                    "$ref": "#/spec/panels/image-preference"
+                  }
+                },
+                {
+                  "x": 0,
+                  "y": 4,
+                  "width": 12,
+                  "height": 4,
+                  "content": {
+                    "$ref": "#/spec/panels/job-success-rate"
+                  }
+                },
+                {
+                  "x": 12,
+                  "y": 4,
+                  "width": 12,
+                  "height": 4,
+                  "content": {
+                    "$ref": "#/spec/panels/framework-usage"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "panels": {
+          "runtime-distribution": {
+            "kind": "Panel",
+            "spec": {
+              "display": {
+                "name": "Runtime Distribution",
+                "description": "PyTorch version adoption"
+              },
+              "plugin": {
+                "kind": "TimeSeriesChart",
+                "spec": {
+                  "queries": [
+                    {
+                      "kind": "TimeSeriesQuery",
+                      "spec": {
+                        "plugin": {
+                          "kind": "PrometheusTimeSeriesQuery",
+                          "spec": {
+                            "query": "sum by (runtime) (training_operator_jobs_created_by_runtime_total)"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "image-preference": {
+            "kind": "Panel",
+            "spec": {
+              "display": {
+                "name": "Image Source Preference",
+                "description": "RHOAI vs External images"
+              },
+              "plugin": {
+                "kind": "PieChart",
+                "spec": {
+                  "queries": [
+                    {
+                      "kind": "TimeSeriesQuery",
+                      "spec": {
+                        "plugin": {
+                          "kind": "PrometheusTimeSeriesQuery",
+                          "spec": {
+                            "query": "sum by (source) (training_operator_image_preference_total)"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "job-success-rate": {
+            "kind": "Panel",
+            "spec": {
+              "display": {
+                "name": "Job Success Rate",
+                "description": "Success vs failure rates"
+              },
+              "plugin": {
+                "kind": "GaugeChart",
+                "spec": {
+                  "queries": [
+                    {
+                      "kind": "TimeSeriesQuery",
+                      "spec": {
+                        "plugin": {
+                          "kind": "PrometheusTimeSeriesQuery",
+                          "spec": {
+                            "query": "sum(rate(training_operator_jobs_successful_total[5m])) / sum(rate(training_operator_jobs_created_total[5m])) * 100"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "unit": "percent",
+                  "thresholds": [
+                    {"value": 95, "color": "green"},
+                    {"value": 80, "color": "yellow"},
+                    {"value": 0, "color": "red"}
+                  ]
+                }
+              }
+            }
+          },
+          "framework-usage": {
+            "kind": "Panel",
+            "spec": {
+              "display": {
+                "name": "Framework Usage",
+                "description": "ML framework distribution"
+              },
+              "plugin": {
+                "kind": "BarChart",
+                "spec": {
+                  "queries": [
+                    {
+                      "kind": "TimeSeriesQuery",
+                      "spec": {
+                        "plugin": {
+                          "kind": "PrometheusTimeSeriesQuery",
+                          "spec": {
+                            "query": "sum by (framework) (training_operator_framework_usage_total)"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }

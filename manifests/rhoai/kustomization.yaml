@@ -1,13 +1,5 @@
-# RHOAI configuration for Kubeflow Training Operator (KFTO)
-
-# Adds namespace to all resources.
 namespace: opendatahub
 
-# Value of this field is prepended to the
-# names of all resources, e.g. a deployment named
-# "wordpress" becomes "alices-wordpress".
-# Note that it should also match with the prefix (text before '-') of the namespace
-# field above.
 namePrefix: kubeflow-
 
 configMapGenerator:
@@ -32,7 +24,6 @@ replacements:
     - spec.template.spec.containers.0.image
     - spec.template.spec.containers.0.args.2
 
-# Labels to add to all resources and selectors.
 labels:
 - includeSelectors: true
   pairs:
@@ -50,8 +41,6 @@ secretGenerator:
       disableNameSuffixHash: true
 
 patches:
-# Mount the controller config file for loading manager configurations
-# through a ComponentConfig type
 - path: manager_config_patch.yaml
 - path: manager_metrics_patch.yaml
 - patch: |-

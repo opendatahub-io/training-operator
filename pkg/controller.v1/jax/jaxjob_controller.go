@@ -306,6 +306,11 @@ func (r *JAXJobReconciler) DeleteJob(job interface{}) error {
 	if !ok {
 		return fmt.Errorf("%+v is not a type of JAXJob", job)
 	}
+
+	// Update telemetry metrics for job deletion
+	containerImage := extractJAXJobContainerImage(jaxjob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), jaxjob.Namespace, jaxjob.Name, containerImage, false)
+
 	if err := r.client.Delete(context.Background(), jaxjob); err != nil {
 		r.recorder.Eventf(jaxjob, corev1.EventTypeWarning, control.FailedDeletePodReason, "Error deleting: %v", err)
 		logrus.Error(err, "failed to delete job", "namespace", jaxjob.Namespace, "name", jaxjob.Name)
@@ -465,6 +470,26 @@ func (r *JAXJobReconciler) IsMasterRole(replicas map[kubeflowv1.ReplicaType]*kub
 }
 
 // onOwnerCreateFunc modify creation condition.
+// extractJAXJobContainerImage finds the primary training container image from the job spec
+func extractJAXJobContainerImage(jaxjob *kubeflowv1.JAXJob) string {
+	// Check worker replicas first (most common in JAX)
+	if workerSpec, hasWorker := jaxjob.Spec.JAXReplicaSpecs[kubeflowv1.JAXJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range jaxjob.Spec.JAXReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return ""
+}
+
 func (r *JAXJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.JAXJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.JAXJob]) bool {
 		jaxjob := e.Object
@@ -472,6 +497,11 @@ func (r *JAXJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreat
 		msg := fmt.Sprintf("JAXJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
 		trainingoperatorcommon.CreatedJobsCounterInc(jaxjob.Namespace, r.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractJAXJobContainerImage(jaxjob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), jaxjob.Namespace, jaxjob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&jaxjob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.JAXJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}

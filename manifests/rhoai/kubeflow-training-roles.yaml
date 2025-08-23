@@ -1,12 +1,8 @@
-#This file has been copied from  ../overlays/kubeflow
-#The original labels have ben commented out for documentation purposes
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: training-edit
   labels:
-#    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: "true"
-#    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-training-admin: "true"
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
 rules:
@@ -44,7 +40,6 @@ kind: ClusterRole
 metadata:
   name: training-view
   labels:
-#    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-view: "true"
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
   - apiGroups:

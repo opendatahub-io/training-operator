@@ -1,0 +1,33 @@
+# METRICS SERVICE
+# Port: 8080/metrics
+# Stable endpoint for ServiceMonitors to scrape (pods have changing IPs)
+# Consumers: Both operational and telemetry ServiceMonitors
+# Annotations: Legacy prometheus.io/* hints for compatibility
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-operator-metrics
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/component: metrics
+    control-plane: training-operator
+    monitoring.opendatahub.io/component: "true"
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+
+  selector:
+    control-plane: training-operator
+    app: training-operator
+
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP

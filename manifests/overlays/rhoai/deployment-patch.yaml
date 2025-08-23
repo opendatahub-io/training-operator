@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-operator
+  namespace: kubeflow
+spec:
+  template:
+    spec:
+      containers:
+      - name: training-operator
+        # Inject all params.env values as environment variables
+        envFrom:
+        - configMapRef:
+            name: training-operator-config
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        # Additional environment variables for RHOAI
+        env:
+        - name: CLUSTER_TYPE
+          value: "RHOAI"
+        - name: ENABLE_WEBHOOKS
+          value: "true"
+        - name: WEBHOOK_PORT
+          value: "9443"
+        - name: METRICS_PORT
+          value: "8080"
+        - name: HEALTH_PROBE_PORT
+          value: "8081"
+        - name: LEADER_ELECTION_NAMESPACE
+          value: "kubeflow"
+        - name: LEADER_ELECTION_NAME
+          value: "training-operator-leader"
+        - name: MAX_CONCURRENT_RECONCILES
+          value: "10"
+        - name: RECONCILE_PERIOD
+          value: "30s"
+        # Logging configuration
+        - name: LOG_LEVEL
+          value: "info"
+        - name: LOG_FORMAT
+          value: "json"
+        - name: LOG_DEVELOPMENT
+          value: "false"
+        # Feature flags
+        - name: ENABLE_GANG_SCHEDULING
+          value: "true"
+        - name: ENABLE_PRIORITY_CLASS
+          value: "true"
+        - name: ENABLE_ELASTIC_TRAINING
+          value: "true"
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          seccompProfile:
+            type: RuntimeDefault

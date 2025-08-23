@@ -1,0 +1,18 @@
+# CI KUSTOMIZATION - Limited deployment for GitHub Actions
+# Used when no Prometheus operator (CI/test environments)
+# Includes: Only metrics-service and network-policy from monitoring
+# Excludes: ServiceMonitors, PrometheusRules (would fail without CRDs)
+# Swapped in by scripts/gha/setup-training-operator.sh during CI
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./crds
+  - ./rbac/cluster-role-binding.yaml
+  - ./rbac/role.yaml
+  - ./rbac/service-account.yaml
+  - ./webhook
+  - service.yaml
+  - deployment.yaml
+  - ./monitoring/network-policy.yaml
+  - ./monitoring/metrics-service.yaml

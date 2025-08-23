@@ -1,0 +1,113 @@
+# RECORDING RULES - Pre-computed aggregations for dashboards and telemetry
+# Two groups:
+#   1. Operational (training_operator:*) - In-cluster dashboards, SLA tracking
+#   2. Telemetry (openshift:*) - Export to Red Hat Observatorium
+# Benefits: Reduces query load, removes high-cardinality labels
+#"openshift:" prefix required for telemetry acceptance
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: training-operator-recording-rules
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    prometheus: kube-prometheus
+    role: recording-rules
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  groups:
+  # OPERATIONAL METRICS GROUP (P0/P1 - Stay in cluster)
+  # ============================================================================
+  - name: training-operator.operational.rules
+    interval: 30s
+    rules:
+    # Rule 1: Total training jobs created across all frameworks. Used for: Cluster capacity planning and usage trends
+    - expr: |
+        sum(
+          training_operator_jobs_created_total
+        )
+      record: training_operator:jobs_created_total:sum
+      labels:
+        component: "training-operator"
+
+    # Rule 2: Active training jobs by framework. Used for: Current cluster load monitoring
+    - expr: |
+        clamp_min(
+          (
+            sum by (framework) (training_operator_jobs_created_total)
+            - sum by (framework) (training_operator_jobs_deleted_total)
+          )
+          or
+          sum by (framework) (training_operator_jobs_created_total),
+        0)
+      record: training_operator:jobs_active_by_framework:sum
+      labels:
+        component: "training-operator"
+
+    # Rule 3: Training job success rate. Used for: Service health monitoring and SLA tracking
+    # Returns 1 when no jobs exist (100% success rate), actual ratio when jobs exist
+    - expr: |
+        (
+          (sum(training_operator_jobs_successful_total) + sum(training_operator_jobs_failed_total)) == 0
+        ) * 1
+        or
+        (
+          sum(training_operator_jobs_successful_total) /
+          (sum(training_operator_jobs_successful_total) + sum(training_operator_jobs_failed_total))
+        )
+      record: training_operator:job_success_rate:ratio
+      labels:
+        component: "training-operator"
+
+    # Rule 4: Job failure rate by framework. Used for: Identifying problematic frameworks
+    - expr: |
+        sum by (framework) (
+          rate(training_operator_jobs_failed_total[5m])
+        )
+      record: training_operator:job_failure_rate_by_framework:rate5m
+      labels:
+        component: "training-operator"
+
+
+  # TELEMETRY METRICS GROUP (P2 - Export to Observatorium via telemeter-client)
+  # ============================================================================
+  - name: training-operator.telemetry.rules
+    interval: 30s
+    rules:
+
+    # TELEMETRY METRIC 1: Runtime adoption tracking. Tracks: pytorch-2.4, pytorch-2.5, pytorch-other, tensorflow, other (5 timeseries)
+    - record: openshift:training_jobs_by_runtime:sum
+      expr: |
+        sum by (runtime) (
+          max without(instance, pod, job, namespace) (
+            training_operator_jobs_created_by_runtime_total
+          )
+        )
+      labels:
+        telemetry: "true"
+        component: "training-operator"
+
+    # TELEMETRY METRIC 2: Image source preference. Tracks: rhoai, external (2 timeseries)
+    - record: openshift:training_image_preference:sum
+      expr: |
+        sum by (source) (
+          max without(instance, pod, job, namespace) (
+            training_operator_image_preference_total
+          )
+        )
+      labels:
+        telemetry: "true"
+        component: "training-operator"
+
+    # TELEMETRY METRIC 3: Framework usage distribution. Tracks: pytorch, tensorflow, other (3 timeseries)
+    - record: openshift:training_framework_usage:sum
+      expr: |
+        sum by (framework) (
+          max without(instance, pod, job, namespace) (
+            training_operator_framework_usage_total
+          )
+        )
+      labels:
+        telemetry: "true"
+        component: "training-operator"

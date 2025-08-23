@@ -366,7 +366,14 @@ func (r *TFJobReconciler) DeleteJob(job interface{}) error {
 
 	r.recorder.Eventf(tfJob, v1.EventTypeNormal, SuccessfulDeleteJobReason, "Deleted job: %v", tfJob.Name)
 	log.Infof("job %s/%s has been deleted", tfJob.Namespace, tfJob.Name)
+
+	// Update original job deleted counter
 	trainingoperatorcommon.DeletedJobsCounterInc(tfJob.Namespace, r.GetFrameworkName())
+
+	// Update telemetry metrics for the deleted job
+	containerImage := extractTFJobContainerImage(tfJob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), tfJob.Namespace, tfJob.Name, containerImage, false)
+
 	return nil
 }
 
@@ -648,6 +655,33 @@ func (r *TFJobReconciler) getPodSlices(tfjob *kubeflowv1.TFJob, replicasNum *int
 	return podSlices, nil
 }
 
+// extractTFJobContainerImage finds the primary training container image from the TFJob spec
+func extractTFJobContainerImage(tfJob *kubeflowv1.TFJob) string {
+	// Check worker replicas first (most common)
+	if workerSpec, hasWorker := tfJob.Spec.TFReplicaSpecs[kubeflowv1.TFJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Check chief replicas if no worker found
+	if chiefSpec, hasChief := tfJob.Spec.TFReplicaSpecs[kubeflowv1.TFJobReplicaTypeChief]; hasChief {
+		if chiefSpec.Template.Spec.Containers != nil && len(chiefSpec.Template.Spec.Containers) > 0 {
+			return chiefSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range tfJob.Spec.TFReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return "unknown"
+}
+
 // onOwnerCreateFunc modify creation condition.
 func (r *TFJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.TFJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.TFJob]) bool {
@@ -655,7 +689,14 @@ func (r *TFJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreate
 		r.Scheme.Default(tfJob)
 		msg := fmt.Sprintf("TFJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
+
+		// Update original job created counter
 		trainingoperatorcommon.CreatedJobsCounterInc(tfJob.Namespace, r.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractTFJobContainerImage(tfJob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), tfJob.Namespace, tfJob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&tfJob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.TFJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}

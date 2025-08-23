@@ -1,0 +1,44 @@
+# Namespaced Role for creating monitoring resources in redhat-ods-monitoring namespace
+# This separates cluster-wide read permissions from namespace-specific create permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-operator-monitoring-creator
+  namespace: redhat-ods-monitoring
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+rules:
+# Allow creating and managing monitoring resources in this namespace only
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  - prometheusrules
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-operator-monitoring-creator-binding
+  namespace: redhat-ods-monitoring
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-operator-monitoring-creator
+subjects:
+- kind: ServiceAccount
+  name: training-operator
+  namespace: kubeflow

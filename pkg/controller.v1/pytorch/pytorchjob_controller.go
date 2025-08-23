@@ -336,7 +336,14 @@ func (r *PyTorchJobReconciler) DeleteJob(job interface{}) error {
 	}
 	r.recorder.Eventf(pytorchjob, corev1.EventTypeNormal, control.SuccessfulDeletePodReason, "Deleted job: %v", pytorchjob.Name)
 	logrus.Info("job deleted", "namespace", pytorchjob.Namespace, "name", pytorchjob.Name)
+
+	// Update original job deleted counter
 	trainingoperatorcommon.DeletedJobsCounterInc(pytorchjob.Namespace, r.GetFrameworkName())
+
+	// Update telemetry metrics for the deleted job
+	containerImage := extractPrimaryContainerImage(pytorchjob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), pytorchjob.Namespace, pytorchjob.Name, containerImage, false)
+
 	return nil
 }
 
@@ -524,6 +531,33 @@ func (r *PyTorchJobReconciler) GetDefaultContainerPortName() string {
 	return kubeflowv1.PyTorchJobDefaultPortName
 }
 
+// extractPrimaryContainerImage finds the primary training container image from the job spec
+func extractPrimaryContainerImage(pytorchjob *kubeflowv1.PyTorchJob) string {
+	// Check worker replicas first (most common)
+	if workerSpec, hasWorker := pytorchjob.Spec.PyTorchReplicaSpecs[kubeflowv1.PyTorchJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Check master replicas if no worker found
+	if masterSpec, hasMaster := pytorchjob.Spec.PyTorchReplicaSpecs[kubeflowv1.PyTorchJobReplicaTypeMaster]; hasMaster {
+		if masterSpec.Template.Spec.Containers != nil && len(masterSpec.Template.Spec.Containers) > 0 {
+			return masterSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range pytorchjob.Spec.PyTorchReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return "unknown"
+}
+
 // onOwnerCreateFunc modify creation condition.
 func (r *PyTorchJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.PyTorchJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.PyTorchJob]) bool {
@@ -531,7 +565,14 @@ func (r *PyTorchJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedC
 		r.Scheme.Default(pytorchjob)
 		msg := fmt.Sprintf("PyTorchJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
+
+		// Update original job created counter
 		trainingoperatorcommon.CreatedJobsCounterInc(pytorchjob.Namespace, r.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractPrimaryContainerImage(pytorchjob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), pytorchjob.Namespace, pytorchjob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&pytorchjob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.PyTorchJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}

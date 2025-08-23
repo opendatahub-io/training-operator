@@ -1,0 +1,50 @@
+# OPERATIONAL SERVICEMONITOR - Full metrics for dashboards/debugging
+# In-cluster monitoring, SRE dashboards, troubleshooting
+# Scrapes: Every 30s from metrics-service:8080
+# Keeps: Most metrics (~95%) and drop only high-cardinality go_memstats
+# This keeps all operational metrics, telemetry keeps only 7
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: training-operator-metrics
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/component: metrics
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  selector:
+    matchLabels:
+      app: training-operator
+      app.kubernetes.io/name: training-operator
+      app.kubernetes.io/component: metrics
+
+  namespaceSelector:
+    matchNames:
+    - kubeflow
+
+  endpoints:
+  - port: metrics
+    path: /metrics
+    scheme: http
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: false
+
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+      action: replace
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+      action: replace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+      action: replace
+
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'go_memstats_.*|go_gc_.*'
+      action: drop

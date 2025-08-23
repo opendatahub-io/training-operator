@@ -1,0 +1,31 @@
+# Kustomization for RHOAI Production Deployment
+# Includes telemetry integration per RHOAISTRAT-575
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeflow
+
+resources:
+  - ../../base
+  - monitoring-namespace-role.yaml
+
+patchesStrategicMerge:
+  - telemetry-patch.yaml
+  - deployment-patch.yaml
+
+configMapGenerator:
+  - name: training-operator-config
+    envs:
+      - params.env
+    options:
+      disableNameSuffixHash: true  # Keep predictable name for references
+
+# Common labels for RHOAI integration
+commonLabels:
+  app.kubernetes.io/part-of: rhoai
+  monitoring.opendatahub.io/component: "true"
+
+# Ensure proper annotations for telemetry
+commonAnnotations:
+  rhoai.io/telemetry-enabled: "true"
+  rhoai.io/metrics-version: "v1"

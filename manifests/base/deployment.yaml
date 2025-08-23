@@ -2,17 +2,25 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: training-operator
+  namespace: kubeflow
   labels:
-    control-plane: kubeflow-training-operator
+    app: training-operator
+    control-plane: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/component: controller
 spec:
   selector:
     matchLabels:
-      control-plane: kubeflow-training-operator
+      app: training-operator
+      control-plane: training-operator
   replicas: 1
   template:
     metadata:
       labels:
-        control-plane: kubeflow-training-operator
+        app: training-operator
+        control-plane: training-operator
+        app.kubernetes.io/name: training-operator
+        app.kubernetes.io/component: controller
       annotations:
         sidecar.istio.io/inject: "false"
     spec:
@@ -23,6 +31,8 @@ spec:
           name: training-operator
           ports:
             - containerPort: 8080
+              name: metrics
+              protocol: TCP
             - containerPort: 9443
               name: webhook-server
               protocol: TCP
@@ -35,6 +45,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            # Telemetry control - set to "true" to enable metrics for Red Hat Observatorium
+            # This is required for RHOAISTRAT-575 compliance
+            - name: TELEMETRY_ENABLED
+              value: "false"  # Default disabled, overridden to "true" in RHOAI overlay
           securityContext:
             allowPrivilegeEscalation: false
           volumeMounts:

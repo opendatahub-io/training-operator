@@ -1,0 +1,68 @@
+# TELEMETRY SERVICEMONITOR - Filtered metrics
+# Export business metrics to Red Hat
+# Scrapes: Every 60s from metrics-service:8080
+# Keeps: ONLY 7 metrics (runtime adoption, image preference, framework usage, job counters)
+# Drops: All go_*, process_*, controller_runtime_*, workqueue_*, rest_client_*
+# Flow: Metrics -> Prometheus -> Recording Rules -> otel-collector -> Observatorium
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: training-operator-metrics-telemetry
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/component: metrics-telemetry
+    monitoring.opendatahub.io/scrape: "true"
+    telemetry: "true"
+spec:
+  selector:
+    matchLabels:
+      app: training-operator
+      app.kubernetes.io/name: training-operator
+      app.kubernetes.io/component: metrics
+
+  namespaceSelector:
+    matchNames:
+    - kubeflow
+
+  endpoints:
+  - port: metrics
+    path: /metrics
+    scheme: http
+    interval: 60s
+    scrapeTimeout: 10s
+    honorLabels: false
+
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+      action: replace
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+      action: replace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+      action: replace
+
+
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'go_.*'
+      action: drop
+    - sourceLabels: [__name__]
+      regex: 'process_.*'
+      action: drop
+    - sourceLabels: [__name__]
+      regex: 'workqueue_.*'
+      action: drop
+    - sourceLabels: [__name__]
+      regex: 'rest_client_.*'
+      action: drop
+    - sourceLabels: [__name__]
+      regex: 'controller_runtime_.*'
+      action: drop
+    - sourceLabels: [__name__]
+      regex: 'training_operator_jobs_created_by_runtime_total|training_operator_image_preference_total|training_operator_framework_usage_total|training_operator_jobs_created_total|training_operator_jobs_deleted_total|training_operator_jobs_successful_total|training_operator_jobs_failed_total'
+      action: keep

@@ -20,14 +20,33 @@ set -o pipefail
 
 echo "Kind load newly locally built image"
 # use cluster name which is used in github actions kind create
-kind load docker-image ${TRAINING_CI_IMAGE} --name ${KIND_CLUSTER}
+kind load docker-image "${TRAINING_CI_IMAGE}" --name "${KIND_CLUSTER}"
 
 echo "Update training operator manifest with newly built image"
 cd manifests/overlays/standalone
-kustomize edit set image kubeflow/training-operator=${TRAINING_CI_IMAGE}
+kustomize edit set image "kubeflow/training-operator=${TRAINING_CI_IMAGE}"
 
 echo "Installing training operator manifests"
+# Use CI kustomization that excludes PrometheusRule/ServiceMonitor resources
+BASE_DIR="../../base"
+
+# Backup the ORIGINAL kustomization.yaml
+cp -f "${BASE_DIR}/kustomization.yaml" "${BASE_DIR}/kustomization.yaml.bak"
+
+# Set up trap to restore original on any exit (success or failure)
+trap 'mv -f "${BASE_DIR}/kustomization.yaml.bak" "${BASE_DIR}/kustomization.yaml" 2>/dev/null || true' EXIT
+
+# Copy CI kustomization over the base to keep CI file intact
+cp -f "${BASE_DIR}/kustomization-ci.yaml" "${BASE_DIR}/kustomization.yaml"
+
+# Apply the manifests
 kustomize build . | kubectl apply --server-side -f -
+
+# Restore the original kustomization.yaml
+mv -f "${BASE_DIR}/kustomization.yaml.bak" "${BASE_DIR}/kustomization.yaml"
+
+# Clear the trap after successful restoration
+trap - EXIT
 
 if [ "${GANG_SCHEDULER_NAME}" = "scheduler-plugins" ]; then
   SCHEDULER_PLUGINS_VERSION=$(go list -m -f "{{.Version}}" sigs.k8s.io/scheduler-plugins)

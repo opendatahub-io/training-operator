@@ -1,0 +1,20 @@
+# NO-CRD KUSTOMIZATION - Basic monitoring without Prometheus
+# Includes: Only standard K8s resources (Service, NetworkPolicy, ConfigMaps)
+# Excludes: ServiceMonitors, PrometheusRules (need CRDs)
+# Metrics endpoint exposed but no automatic scraping
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeflow
+
+resources:
+  - network-policy.yaml
+  - metrics-service.yaml
+  - dashboards
+
+commonLabels:
+  app: training-operator
+  app.kubernetes.io/name: training-operator
+  app.kubernetes.io/part-of: kubeflow
+  monitoring.opendatahub.io/component: "true"

@@ -43,6 +43,7 @@ import (
 
 	kubeflowv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	"github.com/kubeflow/training-operator/pkg/cert"
+	trainingoperatorcommon "github.com/kubeflow/training-operator/pkg/common"
 	"github.com/kubeflow/training-operator/pkg/config"
 	controllerv1 "github.com/kubeflow/training-operator/pkg/controller.v1"
 	"github.com/kubeflow/training-operator/pkg/controller.v1/common"
@@ -126,6 +127,10 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	// Initialize telemetry metrics based on environment variable
+	// TELEMETRY_ENABLED is set by the RHOAI overlay configuration
+	trainingoperatorcommon.InitializeTelemetryMetrics()
+
 	var cacheOpts cache.Options
 	if namespace != "" {
 		cacheOpts = cache.Options{
@@ -169,6 +174,7 @@ func main() {
 	}
 
 	setupProbeEndpoints(mgr, certsReady)
+
 	// Set up controllers using goroutines to start the manager quickly.
 	go setupControllers(mgr, enabledSchemes, gangSchedulerName, controllerThreads, certsReady)
 

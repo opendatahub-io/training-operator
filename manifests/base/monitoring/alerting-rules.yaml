@@ -1,0 +1,63 @@
+# ALERTING RULES - SRE alerts for operator health
+# Alerts:
+#   1. TrainingJobFailureRate (WARNING) - >10% jobs fail in 15min
+#   2. NoTrainingJobsCreated (INFO) - No jobs for 30min (may be normal)
+#   3. TrainingOperatorDown (CRITICAL) - All replicas down for 5min
+# Routes to: Alertmanager -> PagerDuty/Slack/Email based on severity
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: training-operator-alerts
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    prometheus: kube-prometheus
+    role: alert-rules
+    monitoring.opendatahub.io/scrape: "true"
+spec:
+  groups:
+  - name: training-operator.alerts
+    interval: 30s
+    rules:
+
+    # ALERT 1: High failure rate
+    - alert: TrainingOperatorHighFailureRate
+      expr: |
+        (
+          sum(rate(training_operator_jobs_failed_total[15m])) /
+          sum(rate(training_operator_jobs_created_total[15m]))
+        ) > 0.3
+        and sum(rate(training_operator_jobs_created_total[15m])) > 0
+      for: 5m
+      labels:
+        severity: warning
+        component: training-operator
+      annotations:
+        summary: "High training job failure rate ({{ $value | humanizePercentage }})"
+        description: "More than 30% of training jobs are failing in the last 15 minutes."
+
+    # ALERT 2: No jobs being created
+    - alert: TrainingOperatorNoJobsCreated
+      expr: |
+        sum(rate(training_operator_jobs_created_total[30m])) == 0
+        and sum(up{namespace="kubeflow",service="training-operator-metrics"}) > 0
+      for: 30m
+      labels:
+        severity: info
+        component: training-operator
+      annotations:
+        summary: "No training jobs created in the last 30 minutes"
+        description: "No training jobs have been created in the last 30 minutes, but the operator is up. This might be normal during low-usage periods."
+
+    # ALERT 3: Operator down
+    - alert: TrainingOperatorDown
+      expr: |
+        sum by(namespace, service) (up{namespace="kubeflow",service="training-operator-metrics"}) == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: training-operator
+      annotations:
+        summary: "Training operator is down"
+        description: "All training operator replicas have been down for more than 5 minutes."

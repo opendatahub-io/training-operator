@@ -20,7 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// Define all the prometheus counters for all jobs
+// OPERATIONAL METRICS (P0/P1 - Stay in cluster for alerts and dashboards)
+// Telemetry metrics are handled separately in metrics_telemetry.go
 var (
 	jobsCreatedCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -60,7 +61,6 @@ var (
 )
 
 func init() {
-	// Register custom metrics with the global prometheus registry
 	metrics.Registry.MustRegister(jobsCreatedCount,
 		jobsDeletedCount,
 		jobsSuccessfulCount,
@@ -68,22 +68,22 @@ func init() {
 		jobsRestartedCount)
 }
 
-func CreatedJobsCounterInc(job_namespace, framework string) {
-	jobsCreatedCount.WithLabelValues(job_namespace, framework).Inc()
+func CreatedJobsCounterInc(jobNamespace, framework string) {
+	jobsCreatedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func DeletedJobsCounterInc(job_namespace, framework string) {
-	jobsDeletedCount.WithLabelValues(job_namespace, framework).Inc()
+func DeletedJobsCounterInc(jobNamespace, framework string) {
+	jobsDeletedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func SuccessfulJobsCounterInc(job_namespace, framework string) {
-	jobsSuccessfulCount.WithLabelValues(job_namespace, framework).Inc()
+func SuccessfulJobsCounterInc(jobNamespace, framework string) {
+	jobsSuccessfulCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func FailedJobsCounterInc(job_namespace, framework string) {
-	jobsFailedCount.WithLabelValues(job_namespace, framework).Inc()
+func FailedJobsCounterInc(jobNamespace, framework string) {
+	jobsFailedCount.WithLabelValues(jobNamespace, framework).Inc()
 }
 
-func RestartedJobsCounterInc(job_namespace, framework string) {
-	jobsRestartedCount.WithLabelValues(job_namespace, framework).Inc()
+func RestartedJobsCounterInc(jobNamespace, framework string) {
+	jobsRestartedCount.WithLabelValues(jobNamespace, framework).Inc()
 }

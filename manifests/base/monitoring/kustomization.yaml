@@ -1,0 +1,30 @@
+# MONITORING KUSTOMIZATION
+# Requires: Prometheus operator for CRDs
+# Contents:
+#   - servicemonitor.yaml: Operational metrics (30s, all metrics)
+#   - servicemonitor-telemetry.yaml: Telemetry only (60s, 7 metrics)
+#   - recording-rules.yaml: Aggregations for dashboards + telemetry
+#   - alerting-rules.yaml: SRE alerts
+#   - network-policy.yaml: Allow Prometheus scraping
+#   - metrics-service.yaml: Expose port 8080
+#Includes Prometheus-specific resources
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubeflow
+
+resources:
+  - servicemonitor.yaml
+  - servicemonitor-telemetry.yaml
+  - recording-rules.yaml
+  - alerting-rules.yaml
+  - network-policy.yaml
+  - metrics-service.yaml
+  - dashboards
+
+commonLabels:
+  app: training-operator
+  app.kubernetes.io/name: training-operator
+  app.kubernetes.io/part-of: kubeflow
+  monitoring.opendatahub.io/component: "true"

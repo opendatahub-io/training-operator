@@ -1,0 +1,456 @@
+# RBAC configuration for Training Operator in RHOAI environment
+# Required for proper telemetry collection and platform integration
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: training-operator-rhoai
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+rules:
+# Core Kubernetes resources - Minimal required permissions
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - endpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+
+# Leader election is handled by namespace-scoped Role below
+
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+
+# Secrets - Read-only except for webhook cert
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+
+# Webhook certificate management - specific secret only
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - training-operator-webhook-cert
+  - kubeflow-training-operator-webhook-cert  # RHOAI-specific name
+  verbs:
+  - get
+  - create
+  - update
+  - patch
+
+# Pod subresources - correct verbs
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
+
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+
+- apiGroups:
+  - ""
+  resources:
+  - pods/status
+  verbs:
+  - get
+  - patch
+  - update
+
+# ServiceAccount management
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - list
+  - watch
+  - get
+
+# Apps resources
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+
+# Batch resources
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+# Kubeflow training resources
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - pytorchjobs
+  - tfjobs
+  - mpijobs
+  - xgboostjobs
+  - jaxjobs
+  - paddlejobs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - pytorchjobs/status
+  - pytorchjobs/finalizers
+  - tfjobs/status
+  - tfjobs/finalizers
+  - mpijobs/status
+  - mpijobs/finalizers
+  - xgboostjobs/status
+  - xgboostjobs/finalizers
+  - jaxjobs/status
+  - jaxjobs/finalizers
+  - paddlejobs/status
+  - paddlejobs/finalizers
+  verbs:
+  - get
+  - patch
+  - update
+
+# Monitoring resources for telemetry
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  - prometheusrules
+  verbs:
+  - get
+  - list
+  - watch
+
+# Networking for job communication
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+# Scheduling resources
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+  - watch
+
+# Autoscaling resources
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+# Policy resources
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+# RBAC for service accounts
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - create
+  - list
+  - watch
+  - get
+
+# Gang scheduling - Volcano
+- apiGroups:
+  - scheduling.volcano.sh
+  resources:
+  - podgroups
+  - queues
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+
+- apiGroups:
+  - scheduling.volcano.sh
+  resources:
+  - queues/status
+  verbs:
+  - get
+  - patch
+  - update
+
+# Gang scheduling - Scheduler Plugins
+- apiGroups:
+  - scheduling.x-k8s.io
+  resources:
+  - podgroups
+  - elasticquotas
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+
+# Leader election for gang scheduling components
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+
+# Gang scheduling - Kueue
+- apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - workloads
+  - workloads/status
+  - workloads/finalizers
+  - resourceflavors
+  - clusterqueues
+  - localqueues
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: training-operator-rhoai
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: training-operator-rhoai
+subjects:
+- kind: ServiceAccount
+  name: training-operator
+  namespace: kubeflow
+
+---
+# Namespace-scoped role for leader election
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-operator-leader-election
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - create
+  - update
+  - patch
+  - delete
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-operator-leader-election
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-operator-leader-election
+subjects:
+- kind: ServiceAccount
+  name: training-operator
+  namespace: kubeflow
+
+---
+# Additional role for telemetry collection in RHOAI monitoring namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-operator-telemetry
+  namespace: redhat-ods-monitoring
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheusrules
+  - servicemonitors
+  verbs:
+  - get
+  - list
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-operator-telemetry
+  namespace: redhat-ods-monitoring
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/part-of: rhoai
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-operator-telemetry
+subjects:
+- kind: ServiceAccount
+  name: training-operator
+  namespace: kubeflow

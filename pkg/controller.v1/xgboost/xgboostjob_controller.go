@@ -318,6 +318,11 @@ func (r *XGBoostJobReconciler) DeleteJob(job interface{}) error {
 	if !ok {
 		return fmt.Errorf("%+v is not a type of XGBoostJob", xgboostjob)
 	}
+
+	// Update telemetry metrics for job deletion
+	containerImage := extractXGBoostJobContainerImage(xgboostjob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), xgboostjob.Namespace, xgboostjob.Name, containerImage, false)
+
 	if err := r.Delete(context.Background(), xgboostjob); err != nil {
 		r.recorder.Eventf(xgboostjob, corev1.EventTypeWarning, FailedDeleteJobReason, "Error deleting: %v", err)
 		r.Log.Error(err, "failed to delete job", "namespace", xgboostjob.Namespace, "name", xgboostjob.Name)
@@ -454,13 +459,45 @@ func (r *XGBoostJobReconciler) IsMasterRole(replicas map[kubeflowv1.ReplicaType]
 }
 
 // onOwnerCreateFunc modify creation condition.
+// extractXGBoostJobContainerImage finds the primary training container image from the job spec
+func extractXGBoostJobContainerImage(xgboostjob *kubeflowv1.XGBoostJob) string {
+	// Check master replicas first (common in XGBoost)
+	if masterSpec, hasMaster := xgboostjob.Spec.XGBReplicaSpecs[kubeflowv1.XGBoostJobReplicaTypeMaster]; hasMaster {
+		if masterSpec.Template.Spec.Containers != nil && len(masterSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return masterSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Check worker replicas if no master found
+	if workerSpec, hasWorker := xgboostjob.Spec.XGBReplicaSpecs[kubeflowv1.XGBoostJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range xgboostjob.Spec.XGBReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return ""
+}
+
 func (r *XGBoostJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.XGBoostJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.XGBoostJob]) bool {
 		xgboostJob := e.Object
 		r.Scheme.Default(xgboostJob)
 		msg := fmt.Sprintf("XGBoostJob %s is created.", e.Object.GetName())
-		logrus.Info()
+		logrus.Info(msg)
 		trainingoperatorcommon.CreatedJobsCounterInc(xgboostJob.Namespace, r.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractXGBoostJobContainerImage(xgboostJob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), xgboostJob.Namespace, xgboostJob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&xgboostJob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.XGBoostJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}

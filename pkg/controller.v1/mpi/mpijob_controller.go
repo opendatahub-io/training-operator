@@ -314,6 +314,33 @@ func (jc *MPIJobReconciler) GetJobFromInformerCache(namespace, name string) (met
 	return mpijob, err
 }
 
+// extractMPIJobContainerImage finds the primary training container image from the MPIJob spec
+func extractMPIJobContainerImage(mpiJob *kubeflowv1.MPIJob) string {
+	// Check worker replicas first (most common)
+	if workerSpec, hasWorker := mpiJob.Spec.MPIReplicaSpecs[kubeflowv1.MPIJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Check launcher replicas if no worker found
+	if launcherSpec, hasLauncher := mpiJob.Spec.MPIReplicaSpecs[kubeflowv1.MPIJobReplicaTypeLauncher]; hasLauncher {
+		if launcherSpec.Template.Spec.Containers != nil && len(launcherSpec.Template.Spec.Containers) > 0 {
+			return launcherSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range mpiJob.Spec.MPIReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return "unknown"
+}
+
 // onOwnerCreateFunc modify creation condition.
 func (jc *MPIJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.MPIJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.MPIJob]) bool {
@@ -321,7 +348,14 @@ func (jc *MPIJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCrea
 		jc.Scheme.Default(mpiJob)
 		msg := fmt.Sprintf("MPIJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
+
+		// Update original job created counter
 		trainingoperatorcommon.CreatedJobsCounterInc(mpiJob.Namespace, jc.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractMPIJobContainerImage(mpiJob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(jc.GetFrameworkName(), mpiJob.Namespace, mpiJob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&mpiJob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.MPIJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}
@@ -550,7 +584,14 @@ func (jc *MPIJobReconciler) DeleteJob(job interface{}) error {
 
 	jc.Recorder.Eventf(mpiJob, corev1.EventTypeNormal, SuccessfulDeleteJobReason, "Deleted job: %v", mpiJob.Name)
 	log.Infof("job %s/%s has been deleted", mpiJob.Namespace, mpiJob.Name)
+
+	// Update original job deleted counter
 	trainingoperatorcommon.DeletedJobsCounterInc(mpiJob.Namespace, jc.GetFrameworkName())
+
+	// Update telemetry metrics for the deleted job
+	containerImage := extractMPIJobContainerImage(mpiJob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(jc.GetFrameworkName(), mpiJob.Namespace, mpiJob.Name, containerImage, false)
+
 	return nil
 }
 

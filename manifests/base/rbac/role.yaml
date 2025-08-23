@@ -9,10 +9,31 @@ rules:
   resources:
   - configmaps
   verbs:
-  - create
+  - get
   - list
-  - update
   - watch
+  # Only allow create/update for specific ConfigMaps (leader election)
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - 1ca428e5.training-operator.kubeflow.org
+  verbs:
+  - create
+  - update
+  # Leader election via Leases (controller-runtime v0.12+ default)
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -50,7 +71,6 @@ rules:
   verbs:
   - get
   - list
-  - update
   - watch
 - apiGroups:
   - ""

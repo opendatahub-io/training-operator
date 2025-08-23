@@ -1,0 +1,35 @@
+# NETWORK POLICY - Allow Prometheus scraping
+# Security - restricts metrics port 8080 to monitoring namespaces only
+# allows redhat-ods-monitoring, openshift-monitoring
+# Blocks all other namespaces and external traffic
+# Without this Prometheus can't reach metrics due to default-deny policies
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-scrape
+  namespace: kubeflow
+  labels:
+    app: training-operator
+    app.kubernetes.io/name: training-operator
+    app.kubernetes.io/component: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app: training-operator
+
+  policyTypes:
+  - Ingress
+
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+          - redhat-ods-monitoring
+          - openshift-monitoring
+    ports:
+    - protocol: TCP
+      port: 8080

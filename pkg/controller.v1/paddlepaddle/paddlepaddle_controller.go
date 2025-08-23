@@ -319,6 +319,11 @@ func (r *PaddleJobReconciler) DeleteJob(job interface{}) error {
 	if !ok {
 		return fmt.Errorf("%+v is not a type of PaddleJob", job)
 	}
+
+	// Update telemetry metrics for job deletion
+	containerImage := extractPaddleJobContainerImage(paddlejob)
+	trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), paddlejob.Namespace, paddlejob.Name, containerImage, false)
+
 	if err := r.Delete(context.Background(), paddlejob); err != nil {
 		r.recorder.Eventf(paddlejob, corev1.EventTypeWarning, control.FailedDeletePodReason, "Error deleting: %v", err)
 		logrus.Error(err, "failed to delete job", "namespace", paddlejob.Namespace, "name", paddlejob.Name)
@@ -508,6 +513,33 @@ func (r *PaddleJobReconciler) IsMasterRole(replicas map[kubeflowv1.ReplicaType]*
 }
 
 // onOwnerCreateFunc modify creation condition.
+// extractPaddleJobContainerImage finds the primary training container image from the job spec
+func extractPaddleJobContainerImage(paddlejob *kubeflowv1.PaddleJob) string {
+	// Check master replicas first (common in PaddlePaddle)
+	if masterSpec, hasMaster := paddlejob.Spec.PaddleReplicaSpecs[kubeflowv1.PaddleJobReplicaTypeMaster]; hasMaster {
+		if masterSpec.Template.Spec.Containers != nil && len(masterSpec.Template.Spec.Containers) > 0 {
+			// Return the first container's image (typically the training container)
+			return masterSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Check worker replicas if no master found
+	if workerSpec, hasWorker := paddlejob.Spec.PaddleReplicaSpecs[kubeflowv1.PaddleJobReplicaTypeWorker]; hasWorker {
+		if workerSpec.Template.Spec.Containers != nil && len(workerSpec.Template.Spec.Containers) > 0 {
+			return workerSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	// Fallback: return first container image from any replica type
+	for _, replicaSpec := range paddlejob.Spec.PaddleReplicaSpecs {
+		if replicaSpec.Template.Spec.Containers != nil && len(replicaSpec.Template.Spec.Containers) > 0 {
+			return replicaSpec.Template.Spec.Containers[0].Image
+		}
+	}
+
+	return ""
+}
+
 func (r *PaddleJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCreateEvent[*kubeflowv1.PaddleJob]) bool {
 	return func(e event.TypedCreateEvent[*kubeflowv1.PaddleJob]) bool {
 		paddlejob := e.Object
@@ -515,6 +547,11 @@ func (r *PaddleJobReconciler) onOwnerCreateFunc() func(createEvent event.TypedCr
 		msg := fmt.Sprintf("PaddleJob %s is created.", e.Object.GetName())
 		logrus.Info(msg)
 		trainingoperatorcommon.CreatedJobsCounterInc(paddlejob.Namespace, r.GetFrameworkName())
+
+		// Update telemetry metrics for the new job
+		containerImage := extractPaddleJobContainerImage(paddlejob)
+		trainingoperatorcommon.UpdateTelemetryMetricsForJob(r.GetFrameworkName(), paddlejob.Namespace, paddlejob.Name, containerImage, true)
+
 		commonutil.UpdateJobConditions(&paddlejob.Status, kubeflowv1.JobCreated, corev1.ConditionTrue, commonutil.NewReason(kubeflowv1.PaddleJobKind, commonutil.JobCreatedReason), msg)
 		return true
 	}
