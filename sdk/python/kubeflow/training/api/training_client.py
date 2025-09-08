@@ -117,6 +117,10 @@ class TrainingClient(object):
             "access_modes": constants.PVC_DEFAULT_ACCESS_MODES,
         },
         queue_name: Optional[str] = None,
+        report_to_mlflow: bool = False,
+        mlflow_tracking_uri: Optional[str] = None,
+        mlflow_experiment_name: Optional[str] = None,
+        mlflow_run_id: Optional[str] = None,
     ):
         """High level API to fine-tune LLMs with distributed PyTorchJob. Follow this guide
         for more information about this feature: TODO (andreyvelich): Add link.
@@ -233,6 +237,15 @@ class TrainingClient(object):
             raise ValueError("One of the required parameters is None")
 
         namespace = namespace or self.namespace
+
+        if report_to_mlflow:
+            annotations, mlflow_run_id = self._prepare_mlflow_annotations(
+                report_to_mlflow=report_to_mlflow,
+                annotations=annotations,
+                mlflow_run_id=mlflow_run_id,
+                mlflow_tracking_uri=mlflow_tracking_uri,
+                mlflow_experiment_name=mlflow_experiment_name,
+            )
 
         # TODO (andreyvelich): PVC Creation should be part of Training Operator Controller.
         # Ref issue: https://github.com/kubeflow/training-operator/issues/1971
@@ -373,6 +386,10 @@ class TrainingClient(object):
         queue_name: Optional[str] = None,
         volumes: Optional[List[models.V1Volume]] = None,
         volume_mounts: Optional[List[models.V1VolumeMount]] = None,
+        report_to_mlflow: bool = False,
+        mlflow_tracking_uri: Optional[str] = None,
+        mlflow_experiment_name: Optional[str] = None,
+        mlflow_run_id: Optional[str] = None,
     ):
         """Create the Training Job.
         Job can be created using one of the following options:
@@ -468,6 +485,10 @@ class TrainingClient(object):
                         "labels",
                         "annotations",
                         "queue_name",
+                        "report_to_mlflow",
+                        "mlflow_tracking_uri",
+                        "mlflow_experiment_name",
+                        "mlflow_run_id",
                     ]
                     and value is not None
                 ):
@@ -486,6 +507,18 @@ class TrainingClient(object):
             raise ValueError(
                 f"Job kind must be one of these: {constants.JOB_PARAMETERS.keys()}"
             )
+
+        if job is not None and report_to_mlflow:
+            ann, _ml_id = self._prepare_mlflow_annotations(
+                report_to_mlflow=report_to_mlflow,
+                annotations=(getattr(job.metadata, "annotations", None) or annotations),
+                mlflow_run_id=mlflow_run_id,
+                mlflow_tracking_uri=mlflow_tracking_uri,
+                mlflow_experiment_name=mlflow_experiment_name,
+            )
+            if getattr(job.metadata, "annotations", None) is None:
+                job.metadata.annotations = {}
+            job.metadata.annotations.update(ann)
 
         if len(volumes or []) != len(volume_mounts or []):
             raise ValueError(
@@ -531,6 +564,16 @@ class TrainingClient(object):
                     train_func_parameters=parameters,
                     packages_to_install=packages_to_install,
                     pip_index_url=pip_index_url,
+                    inject_mlflow_shim=report_to_mlflow,
+                )
+
+            if report_to_mlflow:
+                annotations, mlflow_run_id = self._prepare_mlflow_annotations(
+                    report_to_mlflow=report_to_mlflow,
+                    annotations=annotations,
+                    mlflow_run_id=mlflow_run_id,
+                    mlflow_tracking_uri=mlflow_tracking_uri,
+                    mlflow_experiment_name=mlflow_experiment_name,
                 )
 
             # Get Training Container template.
@@ -1556,3 +1599,49 @@ class TrainingClient(object):
                     "The job will be created but may not be managed by Kueue."
                 )
                 return None
+
+    def _prepare_mlflow_annotations(
+        self,
+        report_to_mlflow: bool,
+        annotations: Optional[Dict[str, str]],
+        mlflow_run_id: Optional[str],
+        mlflow_tracking_uri: Optional[str],
+        mlflow_experiment_name: Optional[str],
+    ) -> Tuple[Dict[str, str], Optional[str]]:
+
+        if not report_to_mlflow:
+            return dict(annotations or {}), mlflow_run_id
+
+        out_annotations: Dict[str, str] = dict(annotations or {})
+        out_run_id: Optional[str] = mlflow_run_id
+
+        if not out_run_id:
+            try:
+                import mlflow  # type: ignore
+                from mlflow.tracking import MlflowClient  # type: ignore
+
+                if mlflow_tracking_uri:
+                    mlflow.set_tracking_uri(mlflow_tracking_uri)
+                client_ml = MlflowClient()
+                exp_id: Optional[str] = None
+                if mlflow_experiment_name:
+                    exp = client_ml.get_experiment_by_name(mlflow_experiment_name)
+                    if exp is None:
+                        exp_id = client_ml.create_experiment(mlflow_experiment_name)
+                    else:
+                        exp_id = exp.experiment_id
+
+                run = client_ml.create_run(experiment_id=exp_id)
+                out_run_id = run.info.run_id
+            except Exception as e:
+                logger.warning(
+                    "Failed to pre-create MLflow run. Error: %s",
+                    e,
+                )
+
+        if out_run_id:
+            out_annotations["mlflow.kubeflow.org/run-id"] = out_run_id
+        if mlflow_tracking_uri:
+            out_annotations["mlflow.kubeflow.org/tracking-uri"] = mlflow_tracking_uri
+
+        return out_annotations, out_run_id

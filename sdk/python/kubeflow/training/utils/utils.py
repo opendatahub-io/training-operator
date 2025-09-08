@@ -137,6 +137,7 @@ def get_command_using_train_func(
     train_func_parameters: Optional[Dict[str, Any]] = None,
     packages_to_install: Optional[List[str]] = None,
     pip_index_url: str = constants.DEFAULT_PIP_INDEX_URL,
+    inject_mlflow_shim: bool = False,
 ) -> Tuple[List[str], List[str]]:
     """
     Get container args and command from the given training function and parameters.
@@ -164,18 +165,48 @@ def get_command_using_train_func(
         func_code = f"{func_code}\n{train_func.__name__}({train_func_parameters})\n"
 
     # Prepare execute script template.
+    mlflow_shim = ""
+    if inject_mlflow_shim:
+        mlflow_shim = (
+            textwrap.dedent(
+                """
+                try:
+                    import os
+                    import mlflow  # type: ignore
+                    if os.getenv("MLFLOW_TRACKING_URI"):
+                        mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+                    _run_id_env = os.getenv("MLFLOW_RUN_ID")
+                    if _run_id_env:
+                        _mlflow_start_run_orig = mlflow.start_run
+
+                        def _mlflow_start_run_wrapped(*args, **kwargs):
+                            if "run_id" not in kwargs:
+                                kwargs["run_id"] = _run_id_env
+                            return _mlflow_start_run_orig(*args, **kwargs)
+
+                        mlflow.start_run = _mlflow_start_run_wrapped  # type: ignore
+                except Exception:
+                    pass
+
+            """
+            ).strip()
+            + "\n\n"
+        )
+
     exec_script = textwrap.dedent(
         """
                 program_path=$(mktemp -d)
                 read -r -d '' SCRIPT << EOM\n
-                {func_code}
+                {mlflow_shim}{func_code}
                 EOM
                 printf "%s" \"$SCRIPT\" > \"$program_path/ephemeral_script.py\"
                 {entrypoint} \"$program_path/ephemeral_script.py\""""
     )
 
     # Add function code to the execute script.
-    exec_script = exec_script.format(func_code=func_code, entrypoint=entrypoint)
+    exec_script = exec_script.format(
+        mlflow_shim=mlflow_shim, func_code=func_code, entrypoint=entrypoint
+    )
 
     # Install Python packages if that is required.
     if packages_to_install is not None:

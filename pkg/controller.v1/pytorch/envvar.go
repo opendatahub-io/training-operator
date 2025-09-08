@@ -145,6 +145,39 @@ func setPodEnv(obj interface{}, podTemplateSpec *corev1.PodTemplateSpec, rtype, 
 				podTemplateSpec.Spec.Containers[i].Env = append(podTemplateSpec.Spec.Containers[i].Env, checkpointEnvVar)
 			}
 		}
+
+		if pytorchjob.GetAnnotations() != nil {
+			if runID, ok := pytorchjob.GetAnnotations()["mlflow.kubeflow.org/run-id"]; ok && runID != "" {
+				exists := false
+				for _, envVar := range podTemplateSpec.Spec.Containers[i].Env {
+					if envVar.Name == "MLFLOW_RUN_ID" {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					podTemplateSpec.Spec.Containers[i].Env = append(podTemplateSpec.Spec.Containers[i].Env, corev1.EnvVar{
+						Name:  "MLFLOW_RUN_ID",
+						Value: runID,
+					})
+				}
+			}
+			if trackingURI, ok := pytorchjob.GetAnnotations()["mlflow.kubeflow.org/tracking-uri"]; ok && trackingURI != "" {
+				exists := false
+				for _, envVar := range podTemplateSpec.Spec.Containers[i].Env {
+					if envVar.Name == "MLFLOW_TRACKING_URI" {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					podTemplateSpec.Spec.Containers[i].Env = append(podTemplateSpec.Spec.Containers[i].Env, corev1.EnvVar{
+						Name:  "MLFLOW_TRACKING_URI",
+						Value: trackingURI,
+					})
+				}
+			}
+		}
 	}
 
 	return nil
