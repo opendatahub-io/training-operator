@@ -11,3 +11,9 @@ secretGenerator:
   - name: training-operator-webhook-cert
     options:
       disableNameSuffixHash: true
+patches:
+- path: patch.yaml
+  target:
+    group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    version: v1
