@@ -40,14 +40,14 @@ if [ "${GANG_SCHEDULER_NAME}" = "scheduler-plugins" ]; then
     --set scheduler.image="registry.k8s.io/scheduler-plugins/kube-scheduler:${SCHEDULER_PLUGINS_VERSION}"
 
   echo "Configure gang-scheduling using scheduler-plugins to training-operator"
-  kubectl patch -n kubeflow deployments training-operator --type='json' \
+  kubectl patch -n kubeflow deployments kubeflow-training-operator --type='json' \
     -p='[{"op": "add", "path": "/spec/template/spec/containers/0/command/1", "value": "--gang-scheduler-name=scheduler-plugins"}]'
 elif  [ "${GANG_SCHEDULER_NAME}" = "volcano" ]; then
   VOLCANO_SCHEDULER_VERSION=$(go list -m -f "{{.Version}}" volcano.sh/apis)
 
   # patch scheduler first so that it is ready when scheduler-deployment installing finished
   echo "Configure gang-scheduling using volcano to training-operator"
-  kubectl patch -n kubeflow deployments training-operator --type='json' \
+  kubectl patch -n kubeflow deployments kubeflow-training-operator --type='json' \
     -p='[{"op": "add", "path": "/spec/template/spec/containers/0/command/1", "value": "--gang-scheduler-name=volcano"}]'
 
   echo "Installing volcano scheduler ${VOLCANO_SCHEDULER_VERSION}..."
@@ -55,7 +55,7 @@ elif  [ "${GANG_SCHEDULER_NAME}" = "volcano" ]; then
 fi
 
 TIMEOUT=30
-until kubectl get pods -n kubeflow | grep training-operator | grep 1/1 || [[ $TIMEOUT -eq 1 ]]; do
+until kubectl get pods -n kubeflow | grep kubeflow-training-operator | grep 1/1 || [[ $TIMEOUT -eq 1 ]]; do
   sleep 10
   TIMEOUT=$(( TIMEOUT - 1 ))
 done

@@ -11,3 +11,5 @@ secretGenerator:
   - name: training-operator-webhook-cert
     options:
       disableNameSuffixHash: true
+
+namePrefix: kubeflow-
