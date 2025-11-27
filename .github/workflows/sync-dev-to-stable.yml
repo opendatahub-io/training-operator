@@ -15,11 +15,6 @@ permissions:
   contents: write
   pull-requests: write
 
-# Configuration: PR Reviewers
-# To modify who gets requested to review sync PRs, update the list below with comma-separated or space-separated GitHub usernames
-env:
-  PR_REVIEWERS: "sutaakar"
-
 jobs:
   lake-gate:
     runs-on: ubuntu-latest
@@ -30,6 +25,22 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract PR reviewers from OWNERS_ALIASES
+      id: extract-reviewers
+      run: |
+        set -euo pipefail
+        # Extract reviewers from approve-lake-gate alias in OWNERS_ALIASES using jq
+        # Convert YAML to JSON using yq, then extract reviewers with jq
+        REVIEWERS=$(yq -o json OWNERS_ALIASES | jq -r '.aliases."approve-lake-gate"[]? // empty' | tr '\n' ' ' | sed 's/ $//')
+
+        if [ -z "$REVIEWERS" ]; then
+          echo "Warning: No reviewers found in approve-lake-gate alias, using empty string"
+          REVIEWERS=""
+        fi
+
+        echo "Extracted reviewers: $REVIEWERS"
+        echo "reviewers=$REVIEWERS" >> $GITHUB_OUTPUT
 
     - name: Configure Git
       run: |
@@ -206,14 +217,16 @@ jobs:
         # Create the PR
         PR_TITLE="Auto sync dev to stable (up to $LATEST_COMMIT_SHORT)"
 
-        # Normalize PR_REVIEWERS by replacing commas with spaces and create reviewer flags
+        # Get reviewers from OWNERS_ALIASES (extracted in extract-reviewers step)
         REVIEWER_FLAGS=""
-        NORMALIZED_REVIEWERS=$(echo "$PR_REVIEWERS" | tr ',' ' ')
-        for reviewer in $NORMALIZED_REVIEWERS; do
-          if [ -n "$reviewer" ]; then
-            REVIEWER_FLAGS="$REVIEWER_FLAGS --reviewer $reviewer"
-          fi
-        done
+        REVIEWERS="${{ steps.extract-reviewers.outputs.reviewers }}"
+        if [ -n "$REVIEWERS" ]; then
+          for reviewer in $REVIEWERS; do
+            if [ -n "$reviewer" ]; then
+              REVIEWER_FLAGS="$REVIEWER_FLAGS --reviewer $reviewer"
+            fi
+          done
+        fi
 
         gh pr create \
           --title "$PR_TITLE" \
