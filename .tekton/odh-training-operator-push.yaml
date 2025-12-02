@@ -8,7 +8,7 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "dev"
+      == "konflux-poc-1"
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: opendatahub-release
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/training-operator:v1.9.0-odh-3
+    value: quay.io/opendatahub/training-operator:odh-stable
   - name: dockerfile
     value: build/images/training-operator/Dockerfile.rhoai
   - name: path-context
