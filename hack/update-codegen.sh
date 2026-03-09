@@ -13,6 +13,19 @@ TRAINING_OPERATOR_PKG="github.com/kubeflow/training-operator"
 
 cd "$CURRENT_DIR/.."
 
+# Create a temporary go.work file so that when kube_codegen.sh builds
+# code-generator tools (from inside the code-generator module directory),
+# Go's MVS resolves golang.org/x/tools from this module's dependency graph
+# instead of using the code-generator's own (older, Go 1.25-incompatible) pin.
+WORK_DIR=$(mktemp -d)
+trap "rm -rf ${WORK_DIR}" EXIT
+cat > "${WORK_DIR}/go.work" << EOF
+go 1.25
+
+use ${TRAINING_OPERATOR_ROOT}
+EOF
+export GOWORK="${WORK_DIR}/go.work"
+
 # Get the code-generator binary.
 CODEGEN_PKG=$(go list -m -mod=readonly -f "{{.Dir}}" k8s.io/code-generator)
 source "${CODEGEN_PKG}/kube_codegen.sh"
