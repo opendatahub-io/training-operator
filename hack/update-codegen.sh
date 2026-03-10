@@ -13,23 +13,38 @@ TRAINING_OPERATOR_PKG="github.com/kubeflow/training-operator"
 
 cd "$CURRENT_DIR/.."
 
-# Create a temporary go.work file so that when kube_codegen.sh builds
-# code-generator tools (from inside the code-generator module directory),
-# Go's MVS resolves golang.org/x/tools from this module's dependency graph
-# instead of using the code-generator's own (older, Go 1.25-incompatible) pin.
+# Locate code-generator in the module cache (read-only).
+CODEGEN_PKG=$(go list -m -mod=readonly -f "{{.Dir}}" k8s.io/code-generator)
+
+# kube_codegen.sh `cd`s into its own module directory and runs `go install`
+# to build the generator binaries. When that directory is the read-only
+# module cache, `go install` resolves deps from the code-generator's own
+# go.mod, which pins an old golang.org/x/tools incompatible with Go 1.25.
+#
+# Fix: copy code-generator to a writable temp directory and create a Go
+# workspace that includes *both* the training-operator and the copy.
+# Because the copy is a workspace member, Go's MVS merges dependency
+# graphs and picks the newer, Go 1.25-compatible golang.org/x/tools from
+# the training-operator's go.mod.
 WORK_DIR=$(mktemp -d)
-trap "rm -rf ${WORK_DIR}" EXIT
+trap "chmod -R u+w ${WORK_DIR} && rm -rf ${WORK_DIR}" EXIT
+
+CODEGEN_COPY="${WORK_DIR}/code-generator"
+cp -a "${CODEGEN_PKG}" "${CODEGEN_COPY}"
+chmod -R u+w "${CODEGEN_COPY}"
+
 cat > "${WORK_DIR}/go.work" << EOF
 go 1.25
 
 use ${TRAINING_OPERATOR_ROOT}
+use ${CODEGEN_COPY}
 EOF
 export GOWORK="${WORK_DIR}/go.work"
 
-# Get the code-generator binary.
-CODEGEN_PKG=$(go list -m -mod=readonly -f "{{.Dir}}" k8s.io/code-generator)
-source "${CODEGEN_PKG}/kube_codegen.sh"
-echo ">> Using ${CODEGEN_PKG}"
+# Source kube_codegen.sh from the copy so that KUBE_CODEGEN_ROOT (derived
+# from BASH_SOURCE) points to the workspace member, not the module cache.
+source "${CODEGEN_COPY}/kube_codegen.sh"
+echo ">> Using ${CODEGEN_PKG} (workspace copy at ${CODEGEN_COPY})"
 
 # Generating deepcopy and defaults.
 echo "Generating deepcopy and defaults for kubeflow.org/v1"
