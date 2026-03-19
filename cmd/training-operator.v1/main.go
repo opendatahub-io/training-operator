@@ -24,15 +24,20 @@ import (
 	"strings"
 
 	"go.uber.org/zap/zapcore"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/selection"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/util/flowcontrol"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -68,6 +73,44 @@ func init() {
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
 	utilruntime.Must(schedulerpluginsv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+}
+
+// newCacheOptions builds cache options with label selectors to restrict informer
+// cache to operator-managed resources only. Without filtering, the cache loads all
+// Pods, Services, and ConfigMaps cluster-wide, causing unbounded memory growth.
+func newCacheOptions(namespace string) cache.Options {
+	// Use "exists" requirement on the operator-name label that is already set
+	// on all Pods, Services, and ConfigMaps created by the training-operator.
+	operatorLabelReq, err := labels.NewRequirement(
+		kubeflowv1.OperatorNameLabel,
+		selection.Exists,
+		nil,
+	)
+	if err != nil {
+		panic("failed to create label requirement: " + err.Error())
+	}
+	operatorSelector := labels.NewSelector().Add(*operatorLabelReq)
+	operatorFilter := cache.ByObject{Label: operatorSelector}
+
+	opts := cache.Options{
+		DefaultTransform: cache.TransformStripManagedFields(),
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.ConfigMap{}:      operatorFilter,
+			&corev1.Pod{}:            operatorFilter,
+			&corev1.Service{}:        operatorFilter,
+			&corev1.ServiceAccount{}: operatorFilter,
+			&rbacv1.Role{}:           operatorFilter,
+			&rbacv1.RoleBinding{}:    operatorFilter,
+		},
+	}
+
+	if namespace != "" {
+		opts.DefaultNamespaces = map[string]cache.Config{
+			namespace: {},
+		}
+	}
+
+	return opts
 }
 
 func main() {
@@ -126,14 +169,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	var cacheOpts cache.Options
-	if namespace != "" {
-		cacheOpts = cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				namespace: {},
-			},
-		}
-	}
+	cacheOpts := newCacheOptions(namespace)
 
 	cfg := ctrl.GetConfigOrDie()
 	cfg.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(float32(clientQps), clientBurst)
@@ -150,6 +186,18 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       leaderElectionID,
 		Cache:                  cacheOpts,
+		// ConfigMap appears in both ByObject (label-filtered cache) and DisableFor.
+		// ByObject ensures the informer only watches operator-labeled ConfigMaps,
+		// while DisableFor makes client.Get/List bypass the cache entirely for
+		// direct API reads, avoiding stale data for configuration lookups.
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					&corev1.ConfigMap{},
+					&corev1.Secret{},
+				},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
