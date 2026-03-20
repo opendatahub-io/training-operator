@@ -99,6 +99,7 @@ func newCacheOptions(namespace string) cache.Options {
 			&corev1.Pod{}:            operatorFilter,
 			&corev1.Service{}:        operatorFilter,
 			&corev1.ServiceAccount{}: operatorFilter,
+			&corev1.Secret{}:         operatorFilter,
 			&rbacv1.Role{}:           operatorFilter,
 			&rbacv1.RoleBinding{}:    operatorFilter,
 		},
