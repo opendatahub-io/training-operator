@@ -1,0 +1,18 @@
+# golangci-lint configuration file
+# see: https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  allow-parallel-runners: true
+
+linters:
+  default: none
+  enable:
+    - unused
+    - errcheck
+    - govet
+    - ineffassign
+
+issues:
+  max-same-issues: 0

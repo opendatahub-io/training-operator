@@ -82,4 +82,3 @@ jobs:
             echo "Total: $VULN_COUNT vulnerabilities found"
             exit 1
           fi
-
