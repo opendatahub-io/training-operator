@@ -67,7 +67,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/openshift-online/ocm-sdk-go v0.1.368 // indirect
-	github.com/openshift/api v0.0.0-20230213134911-7ba313770556 // indirect
+	github.com/openshift/api 50c3975e874f // indirect
 	github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
