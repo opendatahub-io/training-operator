@@ -42,6 +42,10 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 		output:rbac:artifacts:config=manifests/base/rbac \
 		output:webhook:artifacts:config=manifests/base/webhook
 
+# k8s.io/code-generator@v0.31.x and crd-ref-docs depend on golang.org/x/tools
+# versions incompatible with Go 1.25+. Use Go 1.23 toolchain for generation.
+export GOTOOLCHAIN=go1.23.2+auto
+
 generate: go-mod-download manifests ## Generate apidoc, sdk and code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate/boilerplate.go.txt" paths="./pkg/apis/..."
 	hack/update-codegen.sh
