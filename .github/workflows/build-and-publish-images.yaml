@@ -1,0 +1,96 @@
+# Reusable workflows for publishing Training Operator images.
+name: Build And Publish Images
+
+on:
+  workflow_call:
+    inputs:
+      component-name:
+        required: true
+        type: string
+      platforms:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      context:
+        required: false
+        type: string
+        default: .
+      tag-prefix:
+        required: false
+        type: string
+        default: v1
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
+
+jobs:
+  build-and-publish:
+    name: Publish Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Trigger workflow only for kubeflow/trainer repository with specific branch (master, v.*-branch, release-*) or tag (v.*).
+      - name: Set publish condition
+        id: publish-condition
+        shell: bash
+        run: |
+          if [[ "${{ github.repository }}" == 'kubeflow/trainer' && \
+                ( "${{ github.ref }}" == 'refs/heads/master' || \
+                  "${{ github.ref }}" =~ ^refs/heads/v.*-branch$ || \
+                  "${{ github.ref }}" =~ ^refs/heads/release- || \
+                  "${{ github.ref }}" =~ ^refs/tags/v ) ]]; then
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Free-Up Disk Space
+        uses: ./.github/workflows/free-up-disk-space
+
+      - name: Docker Login
+        if: steps.publish-condition.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: GHCR Login
+        if: steps.publish-condition.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Component ${{ matrix.component-name }}
+        if: steps.publish-condition.outputs.should_publish == 'true'
+        id: publish
+        uses: ./.github/workflows/template-publish-image
+        with:
+          image: |
+            docker.io/kubeflow/${{ inputs.component-name }}
+            ghcr.io/kubeflow/training-v1/${{ inputs.component-name }}
+          dockerfile: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          context: ${{ inputs.context }}
+          push: true
+          tag-prefix: ${{ inputs.tag-prefix }}
+
+      - name: Test Build For Component ${{ inputs.component-name }}
+        if: steps.publish-condition.outputs.should_publish != 'true'
+        uses: ./.github/workflows/template-publish-image
+        with:
+          image: |
+            docker.io/kubeflow/${{ inputs.component-name }}
+            ghcr.io/kubeflow/training-v1/${{ inputs.component-name }}
+          dockerfile: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          context: ${{ inputs.context }}
+          push: false
+          tag-prefix: ${{ inputs.tag-prefix }}

@@ -1,0 +1,32 @@
+apiVersion: "kubeflow.org/v1"
+kind: "TFJob"
+metadata:
+  name: "dist-mnist-for-e2e-test"
+spec:
+  tfReplicaSpecs:
+    Chief:
+      replicas: 1
+      restartPolicy: Never
+      template:
+        spec:
+          containers:
+            - name: tensorflow
+              image: ghcr.io/kubeflow/training-v1/tf-dist-mnist-test:latest
+
+    PS:
+      replicas: 1
+      restartPolicy: Never
+      template:
+        spec:
+          containers:
+            - name: tensorflow
+              image: ghcr.io/kubeflow/training-v1/tf-dist-mnist-test:latest
+
+    Worker:
+      replicas: 2
+      restartPolicy: Never
+      template:
+        spec:
+          containers:
+            - name: tensorflow
+              image: ghcr.io/kubeflow/training-v1/tf-dist-mnist-test:latest

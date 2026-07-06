@@ -1,0 +1,5 @@
+peft==0.15.1
+datasets==3.5.0
+transformers==4.50.2
+accelerate==1.5.2
+tensorboard==2.19.0

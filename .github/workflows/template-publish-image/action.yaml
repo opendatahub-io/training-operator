@@ -1,0 +1,56 @@
+# Composite action to publish Training Operator images.
+name: Build And Publish Container Images
+description: Build Multiplatform Supporting Container Images
+
+inputs:
+  image:
+    required: true
+    description: image tag
+  dockerfile:
+    required: true
+    description: path for Dockerfile
+  platforms:
+    required: true
+    description: e.g, linux/amd64
+  context:
+    required: false
+    default: .
+    description: e.g, examples/xgboost/xgboost-dist
+  push:
+    required: true
+    description: whether to push container images or not
+  tag-prefix:
+    required: false
+    default: v1
+    description: Prefix for the image tag, e.g. v1
+
+runs:
+  using: composite
+  steps:
+    - name: Setup QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: amd64,ppc64le,arm64
+
+    - name: Set Up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Add Docker Tags
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.image }}
+        tags: |
+          type=raw,latest
+          type=sha,prefix=${{ inputs.tag-prefix }}-
+
+    - name: Build and Push
+      uses: docker/build-push-action@v5
+      with:
+        platforms: ${{ inputs.platforms }}
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        push: ${{ inputs.push }}
+        tags: ${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,ignore-error=true
