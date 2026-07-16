@@ -110,7 +110,7 @@ func fetchTLSOpts(cfg *restclient.Config) []func(*tls.Config) {
 				c.MinVersion = tls.VersionTLS12
 				c.CipherSuites = intermediateCiphers
 			})
-		} else if apierrors.IsServiceUnavailable(err) || apierrors.IsTimeout(err) || apierrors.IsTooManyRequests(err) || errors.Is(err, context.DeadlineExceeded) {
+		} else if apierrors.IsServiceUnavailable(err) || apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) || apierrors.IsTooManyRequests(err) || errors.Is(err, context.DeadlineExceeded) {
 			setupLog.Info("Transient error fetching TLS profile, using hardened defaults", "error", err)
 			tlsOpts = append(tlsOpts, func(c *tls.Config) {
 				c.MinVersion = tls.VersionTLS12
