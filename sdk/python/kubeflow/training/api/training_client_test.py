@@ -1993,3 +1993,58 @@ def test_get_job_logs(
         assert type(e) is expected_output
 
     print("test execution complete")
+
+
+class TestApiClientDeserializeDictBracketSyntax:
+    """Verify that ApiClient.__deserialize handles the dict[K, V] bracket syntax
+    introduced by kubernetes client v36 alongside the legacy dict(K, V) syntax."""
+
+    def setup_method(self):
+        from kubeflow.training.api_client import ApiClient as KFApiClient
+
+        self.client = KFApiClient()
+
+    def test_dict_parenthesis_syntax(self):
+        data = {"key1": "val1", "key2": "val2"}
+        result = self.client._ApiClient__deserialize(data, "dict(str, str)")
+        assert result == {"key1": "val1", "key2": "val2"}
+
+    def test_dict_bracket_syntax(self):
+        data = {"key1": "val1", "key2": "val2"}
+        result = self.client._ApiClient__deserialize(data, "dict[str, str]")
+        assert result == {"key1": "val1", "key2": "val2"}
+
+    def test_dict_bracket_syntax_with_int_values(self):
+        data = {"cpu": "4", "memory": "8"}
+        result = self.client._ApiClient__deserialize(data, "dict[str, int]")
+        assert result == {"cpu": 4, "memory": 8}
+
+    def test_dict_bracket_syntax_whitespace_variants(self):
+        data = {"a": "1"}
+        assert self.client._ApiClient__deserialize(data, "dict[str,str]") == {"a": "1"}
+        assert self.client._ApiClient__deserialize(data, "dict[ str , str ]") == {
+            "a": "1"
+        }
+
+    def test_dict_bracket_syntax_invalid_raises(self):
+        from kubeflow.training.exceptions import ApiValueError
+
+        with pytest.raises(ApiValueError):
+            self.client._ApiClient__deserialize({}, "dict[str]")
+
+    def test_dict_bracket_syntax_nested_in_model(self):
+        """Simulate deserialization through a model whose openapi_types
+        uses dict[str, str] (kubernetes client >= 36 bracket syntax)."""
+
+        class FakeModel:
+            openapi_types = {"labels": "dict[str, str]"}
+            attribute_map = {"labels": "labels"}
+            discriminator_value_class_map = None
+
+            def __init__(self, labels=None, local_vars_configuration=None):
+                self.labels = labels
+
+        data = {"labels": {"app": "test", "version": "v1"}}
+        result = self.client._ApiClient__deserialize(data, FakeModel)
+        assert isinstance(result, FakeModel)
+        assert result.labels == {"app": "test", "version": "v1"}
