@@ -14,7 +14,7 @@
 
 from __future__ import absolute_import
 
-__version__ = "1.9.3"
+__version__ = "1.9.3+rhaiv.3"
 
 # import apis into sdk package
 
