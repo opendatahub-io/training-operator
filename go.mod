@@ -1,6 +1,6 @@
 module github.com/kubeflow/training-operator
 
-go 1.23
+go 1.25
 
 require (
 	github.com/go-logr/logr v1.4.2
@@ -19,7 +19,7 @@ require (
 	k8s.io/code-generator v0.31.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
+	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	sigs.k8s.io/controller-runtime v0.19.1
 	sigs.k8s.io/jobset v0.5.2
 	sigs.k8s.io/kueue v0.6.3
