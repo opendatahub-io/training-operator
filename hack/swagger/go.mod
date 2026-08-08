@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/kubeflow/training-operator v0.0.0-00010101000000-000000000000
-	k8s.io/klog/v2 v2.130.1
+	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f
 )
 
@@ -28,9 +28,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
