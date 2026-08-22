@@ -26,7 +26,7 @@ REQUIRES = [
     "certifi>=14.05.14",
     "six>=1.10",
     "setuptools>=21.0.0",
-    "urllib3>=1.15.1",
+    "urllib3>=2.7.0",
     "kubernetes>=27.2.0",
     "retrying>=1.3.3",
 ]
