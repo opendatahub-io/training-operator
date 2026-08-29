@@ -10,8 +10,8 @@ require (
 	github.com/open-policy-agent/cert-controller v0.12.0
 	github.com/project-codeflare/codeflare-common v0.0.0-20250128135036-f501cd31fe8b
 	github.com/prometheus/client_golang v1.20.4
-	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.9.0
+	github.com/sirupsen/logrus v1.10.2
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/zap v1.27.0
 	k8s.io/api v0.31.3
 	k8s.io/apimachinery v0.31.3
@@ -70,7 +70,6 @@ require (
 	github.com/openshift/api v0.0.0-20230213134911-7ba313770556 // indirect
 	github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/project-codeflare/appwrapper v0.8.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.57.0 // indirect
@@ -80,6 +79,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
