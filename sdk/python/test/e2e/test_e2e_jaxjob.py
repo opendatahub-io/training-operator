@@ -21,6 +21,7 @@ from kubernetes.client import V1PodTemplateSpec
 from kubernetes.client import V1ObjectMeta
 from kubernetes.client import V1PodSpec
 from kubernetes.client import V1Container
+from kubernetes.client import V1EnvVar
 from kubernetes.client import V1ResourceRequirements
 
 from kubeflow.training import TrainingClient
@@ -156,5 +157,6 @@ def generate_container() -> V1Container:
     return V1Container(
         name=CONTAINER_NAME,
         image=os.getenv("JAX_JOB_IMAGE", "docker.io/kubeflow/jaxjob-dist-spmd-mnist:latest"),
+        env=[V1EnvVar(name="JAX_NUM_DEVICES", value="1")],
         resources=V1ResourceRequirements(limits={"memory": "3Gi", "cpu": "1.2"}),
     )

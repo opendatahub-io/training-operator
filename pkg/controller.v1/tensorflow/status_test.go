@@ -437,18 +437,20 @@ var _ = Describe("TFJob controller", func() {
 					return nil
 				}, testutil.Timeout, testutil.Interval).Should(BeNil())
 
-				_ = reconciler.ReconcileJobs(c.tfJob, c.tfJob.Spec.TFReplicaSpecs, c.tfJob.Status, &c.tfJob.Spec.RunPolicy)
+				Eventually(func(g Gomega) {
+					_ = reconciler.ReconcileJobs(c.tfJob, c.tfJob.Spec.TFReplicaSpecs, c.tfJob.Status, &c.tfJob.Spec.RunPolicy)
+					g.Expect(filterOutConditionTest(c.tfJob.Status)).Should(Succeed())
 
-				Expect(filterOutConditionTest(c.tfJob.Status)).Should(Succeed())
+					found := false
+					for _, condition := range c.tfJob.Status.Conditions {
+						if condition.Type == c.expectedType {
+							found = true
+						}
+					}
+					g.Expect(found).To(BeTrue())
+				}, testutil.Timeout, testutil.Interval).Should(Succeed())
 
 				reconciler.Log.Info("checking status", "tfJob.Status", c.tfJob.Status)
-				found := false
-				for _, condition := range c.tfJob.Status.Conditions {
-					if condition.Type == c.expectedType {
-						found = true
-					}
-				}
-				Expect(found).To(BeTrue())
 				reconciler.Log.Info("passed!",
 					"job name", c.tfJob.GetName(), "job description", c.description)
 			}

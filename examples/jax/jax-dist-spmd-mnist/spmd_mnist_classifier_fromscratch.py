@@ -33,8 +33,9 @@ import numpy.random as npr
 # of the box – we’ll first need to instruct JAX to split the CPU into multiple devices.
 # This variable has to be set before JAX or any library that imports it is imported
 
+device_count = int(os.getenv("JAX_NUM_DEVICES", "0")) or multiprocessing.cpu_count()
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count={}".format(
-    multiprocessing.cpu_count()
+    device_count
 )
 
 import datasets  # noqa

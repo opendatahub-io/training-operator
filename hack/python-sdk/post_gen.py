@@ -35,6 +35,8 @@ sdk_dir = os.path.abspath(os.path.join(__file__, "../../..", "sdk/python"))
 def main():
     fix_test_files()
     add_imports()
+    fix_api_client_dict_deserialize()
+    sync_package_version()
 
 
 def fix_test_files() -> None:
@@ -77,6 +79,93 @@ def _apply_regex(input_str: str) -> str:
     for pattern, replacement in __replacements:
         input_str = re.sub(pattern, replacement, input_str)
     return input_str
+
+
+def fix_api_client_dict_deserialize() -> None:
+    """
+    Re-apply midstream fix for kubernetes client >= 36 dict[K, V] bracket syntax.
+    OpenAPI generator only emits dict(...) parenthesis form.
+    """
+    api_client_path = os.path.join(sdk_dir, "kubeflow/training/api_client.py")
+    with open(api_client_path, "r") as f:
+        content = f.read()
+
+    old_block = (
+        "            if klass.startswith('dict('):\n"
+        "                sub_kls = re.match(r'dict\\(([^,]*), (.*)\\)', klass).group(2)\n"
+        "                return {k: self.__deserialize(v, sub_kls)\n"
+        "                        for k, v in six.iteritems(data)}"
+    )
+    legacy_block = (
+        "            if klass.startswith('dict(') or klass.startswith('dict['):\n"
+        "                m = re.match(r'dict[\\(\\[]\\s*([^,]*?)\\s*,\\s*(.*?)\\s*[\\)\\]]$', klass)\n"
+        "                if m is None:\n"
+        "                    raise ApiValueError(\n"
+        '                        "Failed to parse dict type: {}".format(klass))\n'
+        "                sub_kls = m.group(2)\n"
+        "                return {k: self.__deserialize(v, sub_kls)\n"
+        "                        for k, v in six.iteritems(data)}"
+    )
+    patched_block = (
+        "            if klass.startswith('dict(') or klass.startswith('dict['):\n"
+        "                if klass.startswith('dict('):\n"
+        "                    m = re.match(r'dict\\(\\s*([^,]*?)\\s*,\\s*(.*?)\\s*\\)$', klass)\n"
+        "                else:\n"
+        "                    m = re.match(r'dict\\[\\s*([^,]*?)\\s*,\\s*(.*?)\\s*\\]$', klass)\n"
+        "                if m is None:\n"
+        "                    raise ApiValueError(\n"
+        '                        "Failed to parse dict type: {}".format(klass))\n'
+        "                sub_kls = m.group(2)\n"
+        "                return {k: self.__deserialize(v, sub_kls)\n"
+        "                        for k, v in six.iteritems(data)}"
+    )
+
+    if patched_block in content:
+        return
+
+    if old_block in content:
+        content = content.replace(old_block, patched_block)
+    elif legacy_block in content:
+        content = content.replace(legacy_block, patched_block)
+    else:
+        raise RuntimeError(
+            "api_client.py dict deserialization block has unexpected content; "
+            "update fix_api_client_dict_deserialize()"
+        )
+
+    with open(api_client_path, "w") as f:
+        f.write(content)
+
+
+def sync_package_version() -> None:
+    """Keep __init__.py version aligned with setup.py after regeneration."""
+    setup_path = os.path.join(sdk_dir, "setup.py")
+    init_path = os.path.join(sdk_dir, "kubeflow/training/__init__.py")
+
+    with open(setup_path, "r") as f:
+        setup_content = f.read()
+
+    version_match = re.search(r'version="([^"]+)"', setup_content)
+    if version_match is None:
+        raise RuntimeError("could not read version from setup.py")
+
+    version = version_match.group(1)
+
+    with open(init_path, "r") as f:
+        init_content = f.read()
+
+    version_pattern = re.compile(r'__version__\s*=\s*"([^"]*)"')
+    version_match_init = version_pattern.search(init_content)
+    if version_match_init is None:
+        raise RuntimeError("could not find __version__ in kubeflow/training/__init__.py")
+
+    if version_match_init.group(1) == version:
+        return
+
+    updated_init = version_pattern.sub(f'__version__ = "{version}"', init_content, count=1)
+
+    with open(init_path, "w") as f:
+        f.write(updated_init)
 
 
 if __name__ == "__main__":

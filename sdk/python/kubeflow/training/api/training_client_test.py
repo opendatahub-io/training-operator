@@ -2032,6 +2032,14 @@ class TestApiClientDeserializeDictBracketSyntax:
         with pytest.raises(ApiValueError):
             self.client._ApiClient__deserialize({}, "dict[str]")
 
+    def test_dict_mismatched_delimiters_raise(self):
+        from kubeflow.training.exceptions import ApiValueError
+
+        with pytest.raises(ApiValueError):
+            self.client._ApiClient__deserialize({}, "dict[str, int)")
+        with pytest.raises(ApiValueError):
+            self.client._ApiClient__deserialize({}, "dict(str, int]")
+
     def test_dict_bracket_syntax_nested_in_model(self):
         """Simulate deserialization through a model whose openapi_types
         uses dict[str, str] (kubernetes client >= 36 bracket syntax)."""

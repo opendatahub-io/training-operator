@@ -26,6 +26,7 @@ import (
 	kubeflowv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	"github.com/kubeflow/training-operator/pkg/config"
 	"github.com/kubeflow/training-operator/pkg/controller.v1/common"
+	envtestassets "github.com/kubeflow/training-operator/pkg/util/envtest"
 	pytorchwebhook "github.com/kubeflow/training-operator/pkg/webhooks/pytorch"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -65,6 +66,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
+		BinaryAssetsDirectory: envtestassets.BinaryAssetsDirectory(),
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "manifests", "base", "crds")},
 		ErrorIfCRDPathMissing: true,
 		WebhookInstallOptions: envtest.WebhookInstallOptions{

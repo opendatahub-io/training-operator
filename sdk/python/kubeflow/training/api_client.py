@@ -297,7 +297,10 @@ class ApiClient(object):
                         for sub_data in data]
 
             if klass.startswith('dict(') or klass.startswith('dict['):
-                m = re.match(r'dict[\(\[]\s*([^,]*?)\s*,\s*(.*?)\s*[\)\]]$', klass)
+                if klass.startswith('dict('):
+                    m = re.match(r'dict\(\s*([^,]*?)\s*,\s*(.*?)\s*\)$', klass)
+                else:
+                    m = re.match(r'dict\[\s*([^,]*?)\s*,\s*(.*?)\s*\]$', klass)
                 if m is None:
                     raise ApiValueError(
                         "Failed to parse dict type: {}".format(klass))

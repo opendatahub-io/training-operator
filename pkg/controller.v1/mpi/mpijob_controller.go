@@ -1253,8 +1253,8 @@ shift
 			Name:      mpiJob.Name + configSuffix,
 			Namespace: mpiJob.Namespace,
 			Labels: map[string]string{
-				"app":                          mpiJob.Name,
-				kubeflowv1.OperatorNameLabel:   controllerName,
+				"app":                        mpiJob.Name,
+				kubeflowv1.OperatorNameLabel: controllerName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(mpiJob, kubeflowv1.MPIJobSchemeGroupVersionKind),
@@ -1311,8 +1311,8 @@ func newLauncherServiceAccount(mpiJob *kubeflowv1.MPIJob) *corev1.ServiceAccount
 			Name:      launcherName,
 			Namespace: mpiJob.Namespace,
 			Labels: map[string]string{
-				"app":                          mpiJob.Name,
-				kubeflowv1.OperatorNameLabel:   controllerName,
+				"app":                        mpiJob.Name,
+				kubeflowv1.OperatorNameLabel: controllerName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(mpiJob, kubeflowv1.MPIJobSchemeGroupVersionKind),
@@ -1334,8 +1334,8 @@ func newLauncherRole(mpiJob *kubeflowv1.MPIJob, workerReplicas int32) *rbacv1.Ro
 			Name:      mpiJob.Name + launcherSuffix,
 			Namespace: mpiJob.Namespace,
 			Labels: map[string]string{
-				"app":                          mpiJob.Name,
-				kubeflowv1.OperatorNameLabel:   controllerName,
+				"app":                        mpiJob.Name,
+				kubeflowv1.OperatorNameLabel: controllerName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(mpiJob, kubeflowv1.MPIJobSchemeGroupVersionKind),
@@ -1373,8 +1373,8 @@ func newLauncherRoleBinding(mpiJob *kubeflowv1.MPIJob) *rbacv1.RoleBinding {
 			Name:      launcherName,
 			Namespace: mpiJob.Namespace,
 			Labels: map[string]string{
-				"app":                          mpiJob.Name,
-				kubeflowv1.OperatorNameLabel:   controllerName,
+				"app":                        mpiJob.Name,
+				kubeflowv1.OperatorNameLabel: controllerName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(mpiJob, kubeflowv1.MPIJobSchemeGroupVersionKind),
