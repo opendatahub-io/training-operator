@@ -17,7 +17,7 @@ func BinaryAssetsDirectory() string {
 		return dir
 	}
 
-	os.Unsetenv("KUBEBUILDER_ASSETS")
+	_ = os.Unsetenv("KUBEBUILDER_ASSETS")
 
 	out, err := exec.Command("setup-envtest", "use", defaultK8sVersion, "-p", "path").Output()
 	if err != nil {
