@@ -33,7 +33,7 @@ runs:
         platforms: amd64,ppc64le,arm64
 
     - name: Set Up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: Add Docker Tags
       id: meta
