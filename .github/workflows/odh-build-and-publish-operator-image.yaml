@@ -64,7 +64,7 @@ jobs:
 
         - name: Add docker tags
           id: meta
-          uses: docker/metadata-action@v5
+          uses: docker/metadata-action@v6
           with:
             images: quay.io/${{ env.REPO_NAME }}/training-operator
             tags: |
