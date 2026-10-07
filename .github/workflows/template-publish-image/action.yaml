@@ -45,7 +45,7 @@ runs:
           type=sha,prefix=${{ inputs.tag-prefix }}-
 
     - name: Build and Push
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         platforms: ${{ inputs.platforms }}
         context: ${{ inputs.context }}
